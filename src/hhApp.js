@@ -15,6 +15,8 @@ const hhApp = {
   coverFirstIndex:       0,
   // width one cover container will take place
   coverCtnTakePlace:     0,
+  // cover slider width
+  coverSliderWidth:      0,
 
   // each element array represents certain list of comics:
   // 0 -> top100, 1 -> sj100, 2 -> history
@@ -52,14 +54,12 @@ const hhApp = {
     const wh = window.innerHeight;
 
     // list slider panel width
-    const listSliderWidth = ww * hhAppConfig.listSliderWidthPer;
+    hhApp.coverSliderWidth = ww * hhAppConfig.listSliderWidthPer;
 
     // width one cover container will take place
     hhApp.coverCtnTakePlace = hhAppConfig.listCoverCtnWidth + hhAppConfig.listCoverMargin;
     // maxium number of covers the homepage list can contain
-    hhApp.coverNumMaxInList = Math.floor((listSliderWidth + hhAppConfig.listCoverMargin) / hhApp.coverCtnTakePlace);
-    // first cover shown margin-left
-    hhApp.coverFirstMarginLeft = (listSliderWidth + hhAppConfig.listCoverMargin) % hhApp.coverCtnTakePlace / 2;
+    hhApp.coverNumMaxInList = Math.floor(hhApp.coverSliderWidth / hhApp.coverCtnTakePlace) + 2;
 
     hhApp.route(undefined, true);
   },

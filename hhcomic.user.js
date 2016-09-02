@@ -3,9 +3,8 @@
 // @namespace   aq
 // @include     http://www.hhcomic.cc*
 // @include     http://hhcomic.cc*
-// @require     https://code.jquery.com/jquery-3.1.0.min.js
+// @require     https://code.jquery.com/jquery-3.1.0.slim.min.js
 // @require     http://cdn.bootcss.com/jquery-mousewheel/3.1.13/jquery.mousewheel.min.js
-// @require     http://cdnjs.cloudflare.com/ajax/libs/velocity/1.2.3/velocity.min.js
 // @version     1
 // @description hh-series site imgs preload
 // @grant       GM_xmlhttpRequest
@@ -50,29 +49,26 @@ const hhAppConfig = {
 };
 
 const hhAppUI = {
-  // a timer exec cover slider return to origin place if
-  // no mousewheel event triggers in 1000ms after the last one
-  coverListTimer:              null,
-  // timer triggers intertial move
-  coverListIntertialTimer:     null,
 
-  // distance the slider has moved
-  coverSliderMoveDistance:     0,
+  // distance the slider will move
+  coverSliderMoveDistance:       0,
+  //
+  coverSliderMoveStart:          0,
+  //
+  coverSliderMarginLeft:         0,
 
   //
-  animating:                   false,
-  // distance the slider auto pager on mousewheel several times
-  coverSliderSlideDistance:    120,
+  coverSilderCanMove:            true,
+
   //
-  coverSliderInertiaDistance:  40,
+  coverSliderAnimationTime:      0,
   //
-  sliderLastDirection:         1,
+  coverSliderAnimationDuration:  60,
+  //
+  listShowNumber:                0,
   // distance the slider moves on mousewheel
-  coverSliderStep:             20,
+  coverSliderStep:               220,
 
-  // if cover slider can scroll towards certain direction
-  coverSliderCanLeft:          true,
-  coverSliderCanRight:         true,
 
   showErrPage(showWholePage = true) {
     // Oops, app cannot recongnize this page
@@ -82,10 +78,16 @@ const hhAppUI = {
   },
   showHomePage() {
     $(hhAppWebpage.homePage).appendTo('body');
+    hhAppUI.bindListener();
     hhAppUI.showComicList(true);
+    hhAppUI.coverListSliderMove();
+  },
+  bindListener() {
+
   },
   showComicList(forceShowList = false) {
     const listShow = hhApp.comicList[hhApp.listShowIndex];
+    hhAppUI.listShowNumber = listShow.length;
     const $listPanel = $('.list-panel');
     const $listLoading = $('.list-loading');
     // infomation of list to be shown has not been loaded yet
@@ -96,37 +98,17 @@ const hhAppUI = {
     if (forceShowList || $listLoading.length > 0) {
       $listPanel.html(hhAppWebpage.listSliderPanel);
 
-      // total number of covers. left and right covers may not exist
-      // if there are not enough ones
-      // |          |-------------------------  coverNumberTotal  ---------------------------|          |
-      // | cover... | cover cover cover cover | cover cover cover  | cover cover cover cover | cover... |
-      // |  may not |  overflow hidden        |  covers shown      |  overflow hidden        |  may not |
-      // |  exist   |---- coverHiddenLeft ----|-- coverNumInList --|--- coverHiddenRight ----|  exist   |
-      // |-----------  coverRestleft  --------|                    |-------  coverRestRight  -----------|
-      // |          |                         | -------------------  coverRestNumInList  ---------------|
-
-      // number of covers start from first showing one to the end of the list
-      const coverRestNumInList = listShow.length - hhApp.coverFirstIndex;
-
-      // plus one to make sure part of the overflow hidden is visible
-      const coverHiddenMax = hhApp.coverNumMaxInList + 1;
-
-      const coverRestLeft = hhApp.coverFirstIndex;
-      const coverHiddenLeft = Math.min(coverHiddenMax, coverRestLeft);
-      hhAppUI.coverSliderCanLeft = coverHiddenLeft > 0;
-
-      const coverNumInList = Math.min(hhApp.coverNumMaxInList, coverRestNumInList);
-
-      const coverRestRight = coverRestNumInList - coverNumInList;
-      const coverHiddenRight = Math.min(coverHiddenMax, coverRestRight);
-      hhAppUI.coverSliderCanRight = coverHiddenRight > 0;
-
-      const coverNumberTotal = coverNumInList + coverHiddenLeft + coverHiddenRight;
-
+      // if not enough covers in listShow
+      let coverNumberTotal = hhApp.coverNumMaxInList;
+      hhAppUI.coverSilderCanMove = true;
+      if (listShow.length <= hhApp.coverNumMaxInList - 1) {
+        coverNumberTotal = listShow.length;
+        hhAppUI.coverSilderCanMove = false;
+      }
       // push all cover elements of the slider into a string
       let coversHTML = '';
       for (let i = 0; i < coverNumberTotal; i++) {
-        const coverInfo = listShow[i + hhApp.coverFirstIndex - coverHiddenLeft];
+        const coverInfo = listShow[i + hhApp.coverFirstIndex];
         coversHTML += hhAppWebpage.coverInList(
           coverInfo.coverImageUrl,
           coverInfo.comicTitle,
@@ -134,89 +116,75 @@ const hhAppUI = {
         );
       }
 
-      //
-      const listSliderMarginLeft = hhApp.coverFirstMarginLeft -
-        coverHiddenLeft * hhApp.coverCtnTakePlace;
       $('.list-slider')
         .html(coversHTML)
         .css({
-          marginLeft: listSliderMarginLeft
-        })
-        .on('mousewheel', e => hhAppUI.coverListMouseWheelHandler(e.deltaY));
+          marginLeft: hhAppUI.coverSliderMarginLeft
+        }
+      );
+
+      $('.list-slider').on('mousewheel', e => hhAppUI.coverSliderMouseWheelHandler(e.deltaY));
 
       $(`.cover-panel`).on('click', e => {
         hhApp.openUrl($(e.currentTarget).attr('data-url'));
       });
     }
   },
-  coverListMouseWheelHandler(direction) {
-    if (hhAppUI.animating) {
+  coverSliderMouseWheelHandler(direction) {
+    if (!hhAppUI.coverSilderCanMove) {
       return false;
     }
-    // setup the timer, if no mousewheel event triggers in 1000ms
-    // the slider auto returns
-    clearTimeout(hhAppUI.coverListTimer);
-    hhAppUI.coverListTimer = setTimeout(
-      () => {
-        hhAppUI.coverListSliderScroll();
-        hhAppUI.coverSliderMoveDistance = 0;
-      },
-      1800
-    );
-    // ingore mousewheel speed > 2
-    direction = direction > 0 ? 1 : -1;
-
-    // interia move if no mousewheel event triggers in 80ms
-    hhAppUI.sliderLastDirection = direction;
-    clearTimeout(hhAppUI.coverListIntertialTimer);
-    hhAppUI.coverListIntertialTimer = setTimeout(
-      () => {
-        const intertialDistance = hhAppUI.sliderLastDirection * hhAppUI.coverSliderInertiaDistance;
-        hhAppUI.coverListSliderScroll(intertialDistance);
-        hhAppUI.coverSliderMoveDistance += intertialDistance;
-      },
-      600
-    );
-
-    // slider moves over 20px, slider auto slide
-    if (Math.abs(hhAppUI.coverSliderMoveDistance) >= hhAppUI.coverSliderSlideDistance) {
-      if ((!hhAppUI.coverSliderCanLeft && direction == -1) ||
-          (!hhAppUI.coverSliderCanRight && direction == 1)) {
-        // reach the start or the end, slider auto returns
-        hhAppUI.coverListSliderScroll();
-        hhAppUI.coverSliderMoveDistance = 0;
-      } else {
-        // auto pager
-        let coverIndexMove = hhApp.coverNumMaxInList;
-        if (direction == -1 && hhApp.coverFirstIndex < hhApp.coverNumMaxInList) {
-          coverIndexMove = hhApp.coverFirstIndex;
-        }
-        const coverDistanceMove = coverIndexMove * hhApp.coverCtnTakePlace - hhAppUI.coverSliderSlideDistance;
-        hhAppUI.coverListSliderScroll(direction * coverDistanceMove, () => {
-          hhApp.coverFirstIndex += direction * coverIndexMove;
-          hhAppUI.coverSliderMoveDistance = 0;
-          hhAppUI.showComicList(true);
-        });
-      }
-    } else {
-      hhAppUI.coverSliderMoveDistance += direction * hhAppUI.coverSliderStep;
-      hhAppUI.coverListSliderScroll(direction * hhAppUI.coverSliderStep);
-    }
+    hhAppUI.coverSliderAnimationTime = 0;
+    hhAppUI.coverSliderMoveDistance = direction * hhAppUI.coverSliderStep;
+    hhAppUI.coverSliderMoveStart = Math.floor($('.list-slider').css('marginLeft').replace(/px/, ''));
   },
-  coverListSliderScroll(distance = -hhAppUI.coverSliderMoveDistance, callback) {
-    // const $listSlider = $('.list-slider').css({
-    //   marginLeft: (index, mgLeft) => {
-    //     return parseFloat(mgLeft) - distance;
-    //   }
-    // });
-    hhAppUI.animating = true;
-    const animateTime = Math.abs(distance) > 30 ? 1500 : 500;
-    $('.list-slider').animate({
-      marginLeft: `-=${distance}px`}, animateTime, 'swing', () => {
-        hhAppUI.animating = false;
-        callback && callback();
+  coverListSliderMove() {
+    const $listSlider = $(`.list-slider`);
+    if ($listSlider.length > 0) {
+      if (hhAppUI.coverSliderMoveDistance != 0 && hhAppUI.coverSliderAnimationTime < hhAppUI.coverSliderAnimationDuration) {
+        hhAppUI.coverSliderAnimationTime++;
+        const coverSliderMoveTo = Math.tween.Quart.easeOut(
+          hhAppUI.coverSliderAnimationTime,
+          hhAppUI.coverSliderMoveStart,
+          hhAppUI.coverSliderMoveDistance,
+          hhAppUI.coverSliderAnimationDuration
+        );
+        if (coverSliderMoveTo > 0) {
+          if (hhApp.coverFirstIndex == 0) {
+            hhAppUI.coverSliderAnimationTime = 0;
+            hhAppUI.coverSliderMoveDistance = 0;
+            $listSlider.css('marginLeft', 0);
+            requestAnimationFrame(hhAppUI.coverListSliderMove);
+            return false;
+          }
+          hhApp.coverFirstIndex--;
+          hhAppUI.showComicList(true);
+          $listSlider.css('marginLeft', '-=200px');
+          hhAppUI.coverSliderMoveStart -=200;
+          requestAnimationFrame(hhAppUI.coverListSliderMove);
+          return false;
+        }
+
+        const coverSliderMinMarginLeft = Math.floor(hhApp.coverSliderWidth - 200 * hhApp.coverNumMaxInList);
+        if (Math.floor(coverSliderMoveTo) < coverSliderMinMarginLeft){
+          if (hhApp.coverFirstIndex + hhApp.coverNumMaxInList == hhAppUI.listShowNumber) {
+            hhAppUI.coverSliderAnimationTime = 0;
+            hhAppUI.coverSliderMoveDistance = 0;
+            $listSlider.css('marginLeft', hhApp.coverSliderWidth - 200 * hhApp.coverNumMaxInList);
+            requestAnimationFrame(hhAppUI.coverListSliderMove);
+            return false;
+          }
+          hhApp.coverFirstIndex++;
+          hhAppUI.showComicList(true);
+          $listSlider.css('marginLeft', '+=200px');
+          hhAppUI.coverSliderMoveStart += 200;
+          requestAnimationFrame(hhAppUI.coverListSliderMove);
+          return false;
+        }
+        $listSlider.css({ marginLeft: coverSliderMoveTo });
       }
-    );
+    }
+    requestAnimationFrame(hhAppUI.coverListSliderMove);
   },
 };
 
@@ -484,6 +452,177 @@ const hhAppWebpage = {
   `
 }
 
+const hhAppTween = {
+  Linear: (t, b, c, d) => { return c*t/d + b; },
+  Quad: {
+    easeIn: (t, b, c, d) => {
+      return c * (t /= d) * t + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return -c *(t /= d)*(t-2) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if ((t /= d / 2) < 1) return c / 2 * t * t + b;
+      return -c / 2 * ((--t) * (t-2) - 1) + b;
+    }
+  },
+  Cubic: { 
+    easeIn: (t, b, c, d) => {
+      return c * (t /= d) * t * t + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return c * ((t = t/d - 1) * t * t + 1) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if ((t /= d / 2) < 1) return c / 2 * t * t*t + b;
+      return c / 2*((t -= 2) * t * t + 2) + b;
+    }
+  },
+  Quart: {
+    easeIn: (t, b, c, d) => {
+      return c * (t /= d) * t * t*t + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return -c * ((t = t/d - 1) * t * t*t - 1) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if ((t /= d / 2) < 1) return c / 2 * t * t * t * t + b;
+      return -c / 2 * ((t -= 2) * t * t*t - 2) + b;
+    }
+  },
+  Quint: {
+    easeIn: (t, b, c, d) => {
+      return c * (t /= d) * t * t * t * t + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return c * ((t = t/d - 1) * t * t * t * t + 1) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if ((t /= d / 2) < 1) return c / 2 * t * t * t * t * t + b;
+      return c / 2*((t -= 2) * t * t * t * t + 2) + b;
+    }
+  },
+  Sine: {
+    easeIn: (t, b, c, d) => {
+      return -c * Math.cos(t/d * (Math.PI/2)) + c + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return c * Math.sin(t/d * (Math.PI/2)) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      return -c / 2 * (Math.cos(Math.PI * t/d) - 1) + b;
+    }
+  },
+  Expo: {
+    easeIn: (t, b, c, d) => {
+      return (t==0) ? b : c * Math.pow(2, 10 * (t/d - 1)) + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return (t==d) ? b + c : c * (-Math.pow(2, -10 * t/d) + 1) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if (t==0) return b;
+      if (t==d) return b+c;
+      if ((t /= d / 2) < 1) return c / 2 * Math.pow(2, 10 * (t - 1)) + b;
+      return c / 2 * (-Math.pow(2, -10 * --t) + 2) + b;
+    }
+  },
+  Circ: {
+    easeIn: (t, b, c, d) => {
+      return -c * (Math.sqrt(1 - (t /= d) * t) - 1) + b;
+    },
+    easeOut: (t, b, c, d) => {
+      return c * Math.sqrt(1 - (t = t/d - 1) * t) + b;
+    },
+    easeInOut: (t, b, c, d) => {
+      if ((t /= d / 2) < 1) return -c / 2 * (Math.sqrt(1 - t * t) - 1) + b;
+      return c / 2 * (Math.sqrt(1 - (t -= 2) * t) + 1) + b;
+    }
+  },
+  Elastic: {
+    easeIn: (t, b, c, d, a, p) => {
+      var s;
+      if (t==0) return b;
+      if ((t /= d) == 1) return b + c;
+      if (typeof p == "undefined") p = d * .3;
+      if (!a || a < Math.abs(c)) {
+        s = p / 4;
+        a = c;
+      } else {
+        s = p / (2 * Math.PI) * Math.asin(c / a);
+      }
+      return -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t * d - s) * (2 * Math.PI) / p)) + b;
+    },
+    easeOut: (t, b, c, d, a, p) => {
+      var s;
+      if (t==0) return b;
+      if ((t /= d) == 1) return b + c;
+      if (typeof p == "undefined") p = d * .3;
+      if (!a || a < Math.abs(c)) {
+        a = c;
+        s = p / 4;
+      } else {
+        s = p/(2*Math.PI) * Math.asin(c/a);
+      }
+      return (a * Math.pow(2, -10 * t) * Math.sin((t * d - s) * (2 * Math.PI) / p) + c + b);
+    },
+    easeInOut: (t, b, c, d, a, p) => {
+      var s;
+      if (t==0) return b;
+      if ((t /= d / 2) == 2) return b+c;
+      if (typeof p == "undefined") p = d * (.3 * 1.5);
+      if (!a || a < Math.abs(c)) {
+        a = c;
+        s = p / 4;
+      } else {
+        s = p / (2  *Math.PI) * Math.asin(c / a);
+      }
+      if (t < 1) return -.5 * (a * Math.pow(2, 10* (t -=1 )) * Math.sin((t * d - s) * (2 * Math.PI) / p)) + b;
+      return a * Math.pow(2, -10 * (t -= 1)) * Math.sin((t * d - s) * (2 * Math.PI) / p ) * .5 + c + b;
+    }
+  },
+  Back: {
+    easeIn: (t, b, c, d, s) => {
+      if (typeof s == "undefined") s = 1.70158;
+      return c * (t /= d) * t * ((s + 1) * t - s) + b;
+    },
+    easeOut: (t, b, c, d, s) => {
+      if (typeof s == "undefined") s = 1.70158;
+      return c * ((t = t/d - 1) * t * ((s + 1) * t + s) + 1) + b;
+    },
+    easeInOut: (t, b, c, d, s) => {
+      if (typeof s == "undefined") s = 1.70158;
+      if ((t /= d / 2) < 1) return c / 2 * (t * t * (((s *= (1.525)) + 1) * t - s)) + b;
+      return c / 2*((t -= 2) * t * (((s *= (1.525)) + 1) * t + s) + 2) + b;
+    }
+  },
+  Bounce: {
+    easeIn: (t, b, c, d) => {
+      return c - hhAppTween.Bounce.easeOut(d-t, 0, c, d) + b;
+    },
+    easeOut: (t, b, c, d) => {
+      if ((t /= d) < (1 / 2.75)) {
+        return c * (7.5625 * t * t) + b;
+      } else if (t < (2 / 2.75)) {
+        return c * (7.5625 * (t -= (1.5 / 2.75)) * t + .75) + b;
+      } else if (t < (2.5 / 2.75)) {
+        return c * (7.5625 * (t -= (2.25 / 2.75)) * t + .9375) + b;
+      } else {
+        return c * (7.5625 * (t -= (2.625 / 2.75)) * t + .984375) + b;
+      }
+    },
+    easeInOut: (t, b, c, d) => {
+      if (t < d / 2) {
+        return hhAppTween.Bounce.easeIn(t * 2, 0, c, d) * .5 + b;
+      } else {
+        return hhAppTween.Bounce.easeOut(t * 2 - d, 0, c, d) * .5 + c * .5 + b;
+      }
+    }
+  }
+}
+
+Math.tween = hhAppTween;
+
 const hhApp = {
   imageWidth:            600,
   imageHeight:           800,
@@ -501,6 +640,8 @@ const hhApp = {
   coverFirstIndex:       0,
   // width one cover container will take place
   coverCtnTakePlace:     0,
+  // cover slider width
+  coverSliderWidth:      0,
 
   // each element array represents certain list of comics:
   // 0 -> top100, 1 -> sj100, 2 -> history
@@ -538,14 +679,12 @@ const hhApp = {
     const wh = window.innerHeight;
 
     // list slider panel width
-    const listSliderWidth = ww * hhAppConfig.listSliderWidthPer;
+    hhApp.coverSliderWidth = ww * hhAppConfig.listSliderWidthPer;
 
     // width one cover container will take place
     hhApp.coverCtnTakePlace = hhAppConfig.listCoverCtnWidth + hhAppConfig.listCoverMargin;
     // maxium number of covers the homepage list can contain
-    hhApp.coverNumMaxInList = Math.floor((listSliderWidth + hhAppConfig.listCoverMargin) / hhApp.coverCtnTakePlace);
-    // first cover shown margin-left
-    hhApp.coverFirstMarginLeft = (listSliderWidth + hhAppConfig.listCoverMargin) % hhApp.coverCtnTakePlace / 2;
+    hhApp.coverNumMaxInList = Math.floor(hhApp.coverSliderWidth / hhApp.coverCtnTakePlace) + 2;
 
     hhApp.route(undefined, true);
   },

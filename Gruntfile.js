@@ -7,7 +7,7 @@ module.exports = function(grunt) {
           separator: '\n',
           process: true
         },
-        src: ['src/header.js', 'src/hhAppConfig.js', 'src/hhAppUI.js', 'src/hhAppParser.js', 'src/hhAppWebpage.js', 'src/hhApp.js'],
+        src: ['src/header.js', 'src/hhAppConfig.js', 'src/hhAppUI.js', 'src/hhAppParser.js', 'src/hhAppWebpage.js', 'src/hhAppTween.js', 'src/hhApp.js'],
         dest: 'hhcomic.user.js'
       }
     },
