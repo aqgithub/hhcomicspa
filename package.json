@@ -1,0 +1,29 @@
+{
+  "name": "hhcomicgmscript",
+  "version": "0.0.1",
+  "description": "turn the whole website into a single APP",
+  "main": "header.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "watch": "grunt watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+http://github.com/aqgithub/hhcomicgmscript"
+  },
+  "keywords": [
+    "hhcomic",
+    "spa"
+  ],
+  "author": "aq",
+  "license": "MIT",
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-cli": "^1.2.0",
+    "grunt-contrib-concat": "^1.0.1",
+    "grunt-contrib-watch": "^1.0.0"
+  }
+}

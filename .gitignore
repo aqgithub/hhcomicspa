@@ -1,0 +1,21 @@
+# node_modules
+node_modules
+
+# backup files
+*.bak
+bak
+
+# editor config
+.editorconfig
+
+# local files
+*.txt
+
+# jquery files
+jquery*.js
+
+# other libraries
+velocity*.js
+
+# log
+*.log*

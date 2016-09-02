@@ -1,0 +1,22 @@
+{
+  "extends": "eslint:recommended",
+  "env": {
+    "browser": true,
+    "greasemonkey": true,
+    "jquery": true,
+    "es6": true,
+    "node": true,
+  },
+  "rules": {
+    "no-console": 1,
+    "comma-dangle": 0,
+    "no-unused-vars": ["error", { "varsIgnorePattern": "hhApp" }],
+  },
+  "globals": {
+    "hhAppConfig": true,
+    "hhAppParser": true,
+    "hhAppUI": true,
+    "hhApp": true,
+    "hhAppWebpage": true,
+  }
+}
