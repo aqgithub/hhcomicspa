@@ -49,27 +49,7 @@ const hhAppConfig = {
 };
 
 const hhAppUI = {
-
-  // distance the slider will move
-  coverSliderMoveDistance:       0,
-  //
-  coverSliderMoveStart:          0,
-  //
-  coverSliderMarginLeft:         0,
-
-  //
-  coverSilderCanMove:            true,
-
-  //
-  coverSliderAnimationTime:      0,
-  //
-  coverSliderAnimationDuration:  60,
-  //
-  listShowNumber:                0,
-  // distance the slider moves on mousewheel
-  coverSliderStep:               220,
-
-
+  $coverSlider: {},
   showErrPage(showWholePage = true) {
     // Oops, app cannot recongnize this page
     if (showWholePage) {
@@ -78,115 +58,267 @@ const hhAppUI = {
   },
   showHomePage() {
     $(hhAppWebpage.homePage).appendTo('body');
-    hhAppUI.bindListener();
-    hhAppUI.showComicList(true);
-    hhAppUI.coverListSliderMove();
-  },
-  bindListener() {
-
-  },
-  showComicList(forceShowList = false) {
-    const listShow = hhApp.comicList[hhApp.listShowIndex];
-    hhAppUI.listShowNumber = listShow.length;
-    const $listPanel = $('.list-panel');
-    const $listLoading = $('.list-loading');
-    // infomation of list to be shown has not been loaded yet
-    if (listShow.length == 0) {
-      $listPanel.html(hhAppWebpage.listLoading);
-      return false;
-    }
-    if (forceShowList || $listLoading.length > 0) {
-      $listPanel.html(hhAppWebpage.listSliderPanel);
-
-      // if not enough covers in listShow
-      let coverNumberTotal = hhApp.coverNumMaxInList;
-      hhAppUI.coverSilderCanMove = true;
-      if (listShow.length <= hhApp.coverNumMaxInList - 1) {
-        coverNumberTotal = listShow.length;
-        hhAppUI.coverSilderCanMove = false;
+    hhAppUI.$coverSlider = $('.list-slider-panel').hhAppCoverSlider(
+      hhApp.comicList[hhApp.listShowIndex],
+      {
+        _sliderMarginLeft: hhApp.sliderMarginLeft,
+        _coverFirstIndex: hhApp.coverFirstIndex,
+        // if not destory, animation function still works after routing
+        _coverClickHandler: {
+          func: coverUrl => {
+            hhApp.coverFirstIndex = hhAppUI.$coverSlider.coverFirstIndex;
+            hhApp.sliderMarginLeft = hhAppUI.$coverSlider.sliderMarginLeft;
+            hhApp.openUrl(coverUrl);
+          },
+          destory: true
+        },
       }
-      // push all cover elements of the slider into a string
-      let coversHTML = '';
-      for (let i = 0; i < coverNumberTotal; i++) {
-        const coverInfo = listShow[i + hhApp.coverFirstIndex];
-        coversHTML += hhAppWebpage.coverInList(
-          coverInfo.coverImageUrl,
-          coverInfo.comicTitle,
-          coverInfo.comicUrl
-        );
-      }
-
-      $('.list-slider')
-        .html(coversHTML)
-        .css({
-          marginLeft: hhAppUI.coverSliderMarginLeft
-        }
-      );
-
-      $('.list-slider').on('mousewheel', e => hhAppUI.coverSliderMouseWheelHandler(e.deltaY));
-
-      $(`.cover-panel`).on('click', e => {
-        hhApp.openUrl($(e.currentTarget).attr('data-url'));
-      });
-    }
+    );
   },
-  coverSliderMouseWheelHandler(direction) {
-    if (!hhAppUI.coverSilderCanMove) {
-      return false;
-    }
-    hhAppUI.coverSliderAnimationTime = 0;
-    hhAppUI.coverSliderMoveDistance = direction * hhAppUI.coverSliderStep;
-    hhAppUI.coverSliderMoveStart = Math.floor($('.list-slider').css('marginLeft').replace(/px/, ''));
-  },
-  coverListSliderMove() {
-    const $listSlider = $(`.list-slider`);
-    if ($listSlider.length > 0) {
-      if (hhAppUI.coverSliderMoveDistance != 0 && hhAppUI.coverSliderAnimationTime < hhAppUI.coverSliderAnimationDuration) {
-        hhAppUI.coverSliderAnimationTime++;
-        const coverSliderMoveTo = Math.tween.Quart.easeOut(
-          hhAppUI.coverSliderAnimationTime,
-          hhAppUI.coverSliderMoveStart,
-          hhAppUI.coverSliderMoveDistance,
-          hhAppUI.coverSliderAnimationDuration
-        );
-        if (coverSliderMoveTo > 0) {
-          if (hhApp.coverFirstIndex == 0) {
-            hhAppUI.coverSliderAnimationTime = 0;
-            hhAppUI.coverSliderMoveDistance = 0;
-            $listSlider.css('marginLeft', 0);
-            requestAnimationFrame(hhAppUI.coverListSliderMove);
-            return false;
-          }
-          hhApp.coverFirstIndex--;
-          hhAppUI.showComicList(true);
-          $listSlider.css('marginLeft', '-=200px');
-          hhAppUI.coverSliderMoveStart -=200;
-          requestAnimationFrame(hhAppUI.coverListSliderMove);
-          return false;
-        }
-
-        const coverSliderMinMarginLeft = Math.floor(hhApp.coverSliderWidth - 200 * hhApp.coverNumMaxInList);
-        if (Math.floor(coverSliderMoveTo) < coverSliderMinMarginLeft){
-          if (hhApp.coverFirstIndex + hhApp.coverNumMaxInList == hhAppUI.listShowNumber) {
-            hhAppUI.coverSliderAnimationTime = 0;
-            hhAppUI.coverSliderMoveDistance = 0;
-            $listSlider.css('marginLeft', hhApp.coverSliderWidth - 200 * hhApp.coverNumMaxInList);
-            requestAnimationFrame(hhAppUI.coverListSliderMove);
-            return false;
-          }
-          hhApp.coverFirstIndex++;
-          hhAppUI.showComicList(true);
-          $listSlider.css('marginLeft', '+=200px');
-          hhAppUI.coverSliderMoveStart += 200;
-          requestAnimationFrame(hhAppUI.coverListSliderMove);
-          return false;
-        }
-        $listSlider.css({ marginLeft: coverSliderMoveTo });
-      }
-    }
-    requestAnimationFrame(hhAppUI.coverListSliderMove);
-  },
+  showCoverSlider() {
+    hhAppUI.$coverSlider.changeList(hhApp.comicList[hhApp.listShowIndex]);
+  }
 };
+
+!(() => {
+  $.fn.hhAppCoverSlider = function(coverList = [], _sliderParams = { }) {
+    // get params
+    const {
+      _coverImgWidth,            // cover image width
+      _coverImgHeight,           // cover image height
+      _coverPanelWidth,          // cover div surrond  image
+      _coverPanelHeight,         // cover div surrond image
+      _coverMargin,              // cover panel margin between each other
+      _nullListHTML,             // html content of returning slider if coverList is null
+      _coverFirstIndex,         // first cover of the slider's index of the list, by default
+      _sliderMarginLeft,        // slider margin left to $parent, by default
+      _coverClickHandler,       // callback when click on cover images
+    }                           = _sliderParams;
+    // set params to default if undefined
+    const coverImgWidth         = _coverImgWidth || 135;
+    const coverImgHeight        = _coverImgHeight || 180;
+    const coverPanelWidth       = _coverPanelWidth || 170;
+    const coverPanelHeight      = _coverPanelHeight || 210;
+    const coverMargin           = _coverMargin || 30;
+    const nullListHTML          = _nullListHTML || '<div class="list-loading">loading...</div>';
+    const coverClickHandler     = _coverClickHandler || { func: (e => alert(e)), destory: false };
+
+    // cover take place
+    const coverTakePlace        = coverPanelWidth + coverMargin;
+    // parent node of the slider
+    const $parent               = $(this) || $('body');
+    // number of covers in the slider
+    let coverCountSlider        = 0;
+    // maxium covers the slider can contain
+    let coverCountMax           = 0;
+    // number of covers in the entire list
+    let coverCountTotal         = 0;
+    // distance the slider will move in animation
+    let moveDistance            = 0;
+    // slider margin-left before animation start
+    let moveStart               = 0;
+    // slider width, inherit from its parent node
+    let sliderWidth             = 0;
+    // slider cannot move if all covers visible in the screen
+    let sliderCanMove           = true;
+    // a increment number recording time animation used
+    let animationTime           = 0;
+    // total animation time
+    let animationDuration       = 60;
+    // distance (px) the slider moves on mousewheel once
+    let animationStepPX         = 220
+    // return object of this class
+    let $slider                 = $('<div>')
+                                    .addClass('list-slider')
+                                    .appendTo($parent);
+    // slider filled with covers in the list, true
+    $slider.sliderFilled        = false;
+    // sotres current slider position, used for re-route
+    $slider.coverFirstIndex     =  _coverFirstIndex || 0;
+    $slider.sliderMarginLeft    =  _sliderMarginLeft || 0;
+    // list stores covers infomation
+    $slider.coverList           = coverList;
+
+    // todo, not work properly
+    $slider.startAnimation = () => {
+      if ($slider.sliderFilled) {
+        // slider animation function, call by requestAnimationFrame
+        $slider.sliderAnimation = () => {
+          if (moveDistance != 0 && animationTime < animationDuration) {
+            animationTime++;
+            // after one tick, slider margin-left change to moveTo
+            // twween
+            //        animationTime     : deltaT, increment 1 on 1 tick
+            //        moveStart         : margin-left at animation start,
+            //        moveDistance      : margin-left value be added when animation done,
+            //        animationDuration : totalT, animationTime finally reach this
+            const moveTo = Math.tween.Quart.easeOut(
+              animationTime,
+              moveStart,
+              moveDistance,
+              animationDuration
+            );
+            // 0 means reaching right end, slider should cut off right 1 cover,
+            // and add one to the left, so sth can show if move further rught
+            if (moveTo > 0) {
+              // no cover can be added to the left, because first left cover
+              // in the slider is fitst element in the list, so stop animation by
+              // set params to 0
+              if ($slider.coverFirstIndex == 0) {
+                animationTime = 0;
+                moveDistance = 0;
+                $slider.css('marginLeft', 0);
+                requestAnimationFrame($slider.sliderAnimation);
+                return false;
+              }
+              $slider.coverFirstIndex--;
+              fillSlider();
+              // after slider dom operatiion, reset its margin-left to
+              // make it seems like not changed
+              $slider.css('marginLeft', `-=${coverTakePlace}px`);
+              moveStart -= coverTakePlace;
+              requestAnimationFrame($slider.sliderAnimation);
+              return false;
+            }
+            // reach the left border, moveTo smaller than minMarginLeft,
+            // blank appears to the right side of the slider
+            // |------ slider real width, including invisible part ------|
+            // |- coverTakePlace -|--- several ...- --|- coverTakePlace -|
+            // |inherit from panel ==> |--------  sliderWidth  ----------|
+            // |---- minMarginLeft ----| <== Obviously a negetive number |
+            const minMarginLeft = sliderWidth - coverTakePlace * coverCountSlider;
+            if (Math.floor(moveTo) < Math.floor(minMarginLeft)){
+              // last cover of the slider is the last one of the list
+              if ($slider.coverFirstIndex + coverCountSlider == coverCountTotal) {
+                animationTime = 0;
+                moveDistance = 0;
+                $slider.css('marginLeft', `${minMarginLeft}px`);
+                requestAnimationFrame($slider.sliderAnimation);
+                return false;
+              }
+              $slider.coverFirstIndex++;
+              fillSlider();
+              // similar as above
+              $slider.css('marginLeft', `+=${coverTakePlace}px`);
+              moveStart += coverTakePlace;
+              requestAnimationFrame($slider.sliderAnimation);
+              return false;
+            }
+            $slider.css({ marginLeft: moveTo });
+          }
+          requestAnimationFrame($slider.sliderAnimation);
+        };
+        $slider.sliderAnimation();
+      }
+      return $slider;
+    };
+
+    $slider.stopAnimation = () => {
+      $slider.sliderFilled && ($slider.sliderAnimation = () => {});
+      return $slider;
+    };
+
+    $slider.destorySlider = () => {
+      $slider.stopAnimation();
+      $slider.empty();
+      return true;
+    };
+
+    $slider.changeList = (newCoverList = []) => {
+      // if new cover list smaller than old one, previous position
+      // may cause slider invisible
+      $slider.coverFirstIndex = 0;
+      $slider.sliderMarginLeft = 0;
+      return createSlider(newCoverList);
+    };
+    // change covers list
+    const createSlider = (coverList = []) => {
+      $slider.destorySlider();
+      // what will return if coverList has no element
+      if (coverList.length == 0) {
+        // no covers in the list, return slider containing warning html
+        $slider.sliderFilled = false;
+        $slider.html(nullListHTML);
+        return $slider;
+      }
+
+      $slider.coverList = coverList;
+      calc();
+      fillSlider();
+      $slider.sliderFilled  = true;
+      return $slider.css('marginLeft', `${$slider.sliderMarginLeft}px`).startAnimation();
+    };
+
+    // recalc when window resize
+    const calc = () => {
+      sliderWidth        = $parent.width();
+      coverCountTotal    = $slider.coverList.length;
+      // plus 2 to make sure part of covers on both sides visible
+      coverCountMax      = Math.floor(sliderWidth / coverTakePlace) + 2;
+      // number of covers in the list greater than slider can show,
+      // so user can move the slider to view the whole list
+      sliderCanMove      = coverCountTotal > coverCountMax - 1;
+      //
+      coverCountSlider   = sliderCanMove ? coverCountMax : coverCountTotal;
+    };
+
+    const mousewheelHandler = (direction) => {
+      if (sliderCanMove) {
+        animationTime = 0;
+        moveDistance = direction * animationStepPX;
+        moveStart = Math.floor($slider.css('marginLeft').replace(/px/, ''));
+      }
+    };
+
+    // generate slider html
+    const fillSlider = () => {
+      // push all cover elements of the slider into a string
+      let sliderHTML = '';
+      for (let i = 0; i < coverCountSlider; i++) {
+        const coverInfo = $slider.coverList[i + $slider.coverFirstIndex];
+        // cover-panel rotate random degree, range: (-6, -3) U (3, 6)
+        const imageRotateDirection = Math.random() > 0.5 ? -1 : 1;
+        const imageRotateDeg = Math.random() * 3 + 3;
+        const coverPanelHTML =  `
+          <div
+            class="cover-panel"
+            style="
+              transform: rotate(${imageRotateDirection * imageRotateDeg}deg);
+              width: ${coverPanelWidth}px;
+              height: ${coverPanelHeight}px;
+              margin-right: ${coverMargin}px
+            "
+            data-url=${coverInfo.comicUrl}
+          >
+            <img
+              src=${coverInfo.coverImageUrl} alt="load error"
+              style="
+                width: ${coverImgWidth}px;
+                height: ${coverImgHeight}px
+              "
+            />
+            <span>${coverInfo.comicTitle}</span>
+          </div>
+        `;
+        sliderHTML += coverPanelHTML;
+      }
+      $slider.html(sliderHTML);
+
+      $('.cover-panel').on('click', e => {
+        $slider.sliderMarginLeft = $slider.css('marginLeft').replace(/px/, '');
+        coverClickHandler.destory && $slider.destorySlider();
+        coverClickHandler.func($(e.currentTarget).attr('data-url'));
+      });
+    };
+
+    //
+    createSlider($slider.coverList);
+    // bind handler
+    $parent.on('mousewheel', e => mousewheelHandler(e.deltaY));
+
+    return $slider;
+  };
+})();
 
 const hhAppParser = {
   // topListIndex 0 -> '/top100.htm', 1 -> '/sj100.htm'
@@ -236,43 +368,9 @@ const hhAppWebpage = {
       <a class="search-btn">搜索漫画</a>
     </div>
     <div class="list-panel">
+      <div class="list-slider-panel"></div>
     </div>
   `,
-  listLoading: `
-    <div class="list-loading">
-      loading...
-    </div>
-  `,
-  listSliderPanel: `
-    <div class="list-slider-panel">
-      <div class="list-slider"></div>
-    </div>
-  `,
-  coverInList(imageUrl, title, comicUrl) {
-    const imageRotateDirection = Math.random() > 0.5 ? -1 : 1;
-    const imageRotateDeg = Math.random() * 3 + 3;
-    return `
-      <div
-        class="cover-panel"
-        style="
-          transform: rotate(${imageRotateDirection * imageRotateDeg}deg);
-          width: ${hhAppConfig.listCoverCtnWidth}px;
-          height: ${hhAppConfig.listCoverCtnHeight}px;
-          margin-right: ${hhAppConfig.listCoverMargin}px
-        "
-        data-url=${comicUrl}
-      >
-        <img
-          src=${imageUrl} alt="load error"
-          style="
-            width: ${hhAppConfig.listCoverImgWidth}px;
-            height: ${hhAppConfig.listCoverImgHeight}px
-          "
-        />
-        <span>${title}</span>
-      </div>
-    `
-  },
   comic: `
     <div class="image-panel">
       <div class="image-slider"></div>
@@ -629,26 +727,18 @@ const hhApp = {
   scrollStep:            20,
   comicCache:            {},
 
-  // index of lisxt shwon in homepage
+  // index of list shwon in homepage
   listShowIndex:         0,
-
-  // maxium number of covers the homepage list can contain
-  coverNumMaxInList:     0,
-  // first cover shown margin-left
-  coverFirstMarginLeft:  0,
-  // index of first cover shown in the list
+  // slider's first cover's index of the list
   coverFirstIndex:       0,
-  // width one cover container will take place
-  coverCtnTakePlace:     0,
-  // cover slider width
-  coverSliderWidth:      0,
+  // slider margin-left to slider-panel, used when routing back to homepage
+  sliderMarginLeft:      0,
 
   // each element array represents certain list of comics:
   // 0 -> top100, 1 -> sj100, 2 -> history
   // each element of one element array stores infomation of certain comic
   // [[ { comicUrl, comicCoverUrl, comicTitle }, ... ], [ ... ], [ ... ], ]
   comicList:            [[], [], [],],
-
   //
   init() {
     // check browser
@@ -658,37 +748,30 @@ const hhApp = {
     }
 
     window.stop();
-    window.onpopstate = () => hhApp.route();
-    window.onresize = () => hhApp.windowResizeHandler();
     GM_addStyle(hhAppWebpage.style);
 
     hhApp.initConfig();
     hhApp.listShowIndex = hhAppConfig.defaultListShowIndex;
-
+    hhApp.initListener();
     hhApp.windowResizeHandler();
-
-    hhApp.route();
   },
   initConfig() {
     // load custom config from localStorage
     Object.assign(hhAppConfig, null);
+  },
+  // bind event
+  initListener() {
+    window.onpopstate = () => hhApp.route();
+    window.onresize = () => hhApp.windowResizeHandler();
   },
   // calculate sizes according to window
   windowResizeHandler() {
     const ww = window.innerWidth;
     const wh = window.innerHeight;
 
-    // list slider panel width
-    hhApp.coverSliderWidth = ww * hhAppConfig.listSliderWidthPer;
-
-    // width one cover container will take place
-    hhApp.coverCtnTakePlace = hhAppConfig.listCoverCtnWidth + hhAppConfig.listCoverMargin;
-    // maxium number of covers the homepage list can contain
-    hhApp.coverNumMaxInList = Math.floor(hhApp.coverSliderWidth / hhApp.coverCtnTakePlace) + 2;
-
-    hhApp.route(undefined, true);
+    hhApp.route();
   },
-  route(loc = window.location, forceRedraw = false) {
+  route(loc = window.location) {
     // to make sure an empty <doby> tag exists in the page
     if ($('body').length == 0) {
       $('<body>').appendTo($('html'));
@@ -701,9 +784,9 @@ const hhApp = {
       // fetch top comic list from '/top100.htm' and '/sj100.htm'
       // if one has not been fetched yet
       [0, 1].forEach(index => {
-        hhApp.comicList[index] == [] || hhAppParser.fetchTopComic(index).then(topComics => {
+        hhApp.comicList[index].length == 0 && hhAppParser.fetchTopComic(index).then(topComics => {
           hhApp.comicList[index] = topComics;
-          hhAppUI.showComicList(forceRedraw);
+          index == hhApp.listShowIndex && hhAppUI.showCoverSlider();
         }, () => {});
       });
       // fetch history comic list from localStorage

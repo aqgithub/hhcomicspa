@@ -6,43 +6,9 @@ const hhAppWebpage = {
       <a class="search-btn">搜索漫画</a>
     </div>
     <div class="list-panel">
+      <div class="list-slider-panel"></div>
     </div>
   `,
-  listLoading: `
-    <div class="list-loading">
-      loading...
-    </div>
-  `,
-  listSliderPanel: `
-    <div class="list-slider-panel">
-      <div class="list-slider"></div>
-    </div>
-  `,
-  coverInList(imageUrl, title, comicUrl) {
-    const imageRotateDirection = Math.random() > 0.5 ? -1 : 1;
-    const imageRotateDeg = Math.random() * 3 + 3;
-    return `
-      <div
-        class="cover-panel"
-        style="
-          transform: rotate(${imageRotateDirection * imageRotateDeg}deg);
-          width: ${hhAppConfig.listCoverCtnWidth}px;
-          height: ${hhAppConfig.listCoverCtnHeight}px;
-          margin-right: ${hhAppConfig.listCoverMargin}px
-        "
-        data-url=${comicUrl}
-      >
-        <img
-          src=${imageUrl} alt="load error"
-          style="
-            width: ${hhAppConfig.listCoverImgWidth}px;
-            height: ${hhAppConfig.listCoverImgHeight}px
-          "
-        />
-        <span>${title}</span>
-      </div>
-    `
-  },
   comic: `
     <div class="image-panel">
       <div class="image-slider"></div>

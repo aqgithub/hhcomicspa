@@ -4,26 +4,18 @@ const hhApp = {
   scrollStep:            20,
   comicCache:            {},
 
-  // index of lisxt shwon in homepage
+  // index of list shwon in homepage
   listShowIndex:         0,
-
-  // maxium number of covers the homepage list can contain
-  coverNumMaxInList:     0,
-  // first cover shown margin-left
-  coverFirstMarginLeft:  0,
-  // index of first cover shown in the list
+  // slider's first cover's index of the list
   coverFirstIndex:       0,
-  // width one cover container will take place
-  coverCtnTakePlace:     0,
-  // cover slider width
-  coverSliderWidth:      0,
+  // slider margin-left to slider-panel, used when routing back to homepage
+  sliderMarginLeft:      0,
 
   // each element array represents certain list of comics:
   // 0 -> top100, 1 -> sj100, 2 -> history
   // each element of one element array stores infomation of certain comic
   // [[ { comicUrl, comicCoverUrl, comicTitle }, ... ], [ ... ], [ ... ], ]
   comicList:            [[], [], [],],
-
   //
   init() {
     // check browser
@@ -33,37 +25,30 @@ const hhApp = {
     }
 
     window.stop();
-    window.onpopstate = () => hhApp.route();
-    window.onresize = () => hhApp.windowResizeHandler();
     GM_addStyle(hhAppWebpage.style);
 
     hhApp.initConfig();
     hhApp.listShowIndex = hhAppConfig.defaultListShowIndex;
-
+    hhApp.initListener();
     hhApp.windowResizeHandler();
-
-    hhApp.route();
   },
   initConfig() {
     // load custom config from localStorage
     Object.assign(hhAppConfig, null);
+  },
+  // bind event
+  initListener() {
+    window.onpopstate = () => hhApp.route();
+    window.onresize = () => hhApp.windowResizeHandler();
   },
   // calculate sizes according to window
   windowResizeHandler() {
     const ww = window.innerWidth;
     const wh = window.innerHeight;
 
-    // list slider panel width
-    hhApp.coverSliderWidth = ww * hhAppConfig.listSliderWidthPer;
-
-    // width one cover container will take place
-    hhApp.coverCtnTakePlace = hhAppConfig.listCoverCtnWidth + hhAppConfig.listCoverMargin;
-    // maxium number of covers the homepage list can contain
-    hhApp.coverNumMaxInList = Math.floor(hhApp.coverSliderWidth / hhApp.coverCtnTakePlace) + 2;
-
-    hhApp.route(undefined, true);
+    hhApp.route();
   },
-  route(loc = window.location, forceRedraw = false) {
+  route(loc = window.location) {
     // to make sure an empty <doby> tag exists in the page
     if ($('body').length == 0) {
       $('<body>').appendTo($('html'));
@@ -76,9 +61,9 @@ const hhApp = {
       // fetch top comic list from '/top100.htm' and '/sj100.htm'
       // if one has not been fetched yet
       [0, 1].forEach(index => {
-        hhApp.comicList[index] == [] || hhAppParser.fetchTopComic(index).then(topComics => {
+        hhApp.comicList[index].length == 0 && hhAppParser.fetchTopComic(index).then(topComics => {
           hhApp.comicList[index] = topComics;
-          hhAppUI.showComicList(forceRedraw);
+          index == hhApp.listShowIndex && hhAppUI.showCoverSlider();
         }, () => {});
       });
       // fetch history comic list from localStorage
