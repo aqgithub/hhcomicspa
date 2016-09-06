@@ -42,8 +42,8 @@ const hhApp = {
   },
   // calculate sizes according to window
   windowResizeHandler() {
-    const ww = window.innerWidth;
-    const wh = window.innerHeight;
+    // @TODO const ww = window.innerWidth;
+    // @TODO const wh = window.innerHeight;
 
     hhApp.route();
   },
@@ -69,11 +69,8 @@ const hhApp = {
         hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
           const volumnid = Object.keys(comicInfo.comicVolumns)[0];
           const serverid = comicInfo.comicnServerId;
-          console.log(comicid);
-          console.log(volumnid);
-          console.log(serverid);
           hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
-            re => console.log(re),
+            re => hhAppParser.fetchPic(re[0]),
             () => {}
           );
         }, () => {});

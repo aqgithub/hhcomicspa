@@ -367,9 +367,6 @@ const hhAppParser = {
     if (hhApp.definedInDepth(hhApp.comicCache, [comicid, 'comicVolumns'], true) && !forceRefetch) {
       return Promise.resolve(hhApp.comicCache[comicid]);
     }
-    // if (hhApp.comicCache.hasOwnProperty(comicid) && hhApp.comicCache[comicid].hasOwnProperty('comicVolumnInfo') && !forceRefetch) {
-    //   return hhApp.comicCache[comicid];
-    // }
     return hhAppParser.GM_xhr_get(hhAppConfig.comicPageUrl(comicid)).then(
       _comicPageHTML => {
         const comicPageHTML = _comicPageHTML.responseText;
@@ -446,7 +443,9 @@ const hhAppParser = {
             const volumnPicListSplit  = volumnPicList.split(picListSalt.charAt(10));
             const volumnPicListDecode = volumnPicListSplit.map(asc => String.fromCharCode(asc)).join('');
             const volumnPicListUrls   = volumnPicListDecode.split('|').map(url => serverUrl + url);
-
+            if (fetchAndReplace) {
+              // @TODO store pic urls list
+            }
             return volumnPicListUrls;
           },
           () => {}
@@ -458,14 +457,14 @@ const hhAppParser = {
   fetchServerUrls(serverJsIndex, serverid) {
     if (hhApp.serverUrls.hasOwnProperty(serverJsIndex)) {
       return Promise.resolve({
-        serverUrl: hhApp.serverUrls[serverJsIndex][serverid],
+        serverUrl: hhApp.serverUrls[serverJsIndex][serverid - 1],
         picListSalt: hhApp.picListSalts[serverJsIndex],
       });
     }
     return hhAppParser.GM_xhr_get(hhAppConfig.serverJsUrl(serverJsIndex)).then(
       _serverJsHTML => {
         const serverJsHTML  = _serverJsHTML.responseText;
-        const picListSalt  = serverJsHTML.match(hhAppConfig.reg_ServerEncode)[1];
+        const picListSalt   = serverJsHTML.match(hhAppConfig.reg_ServerEncode)[1];
         let serverMatch     = '';
         let serverUrls      = [];
         while ((serverMatch = hhAppConfig.reg_ServerList.exec(serverJsHTML)) != null) {
@@ -478,28 +477,39 @@ const hhAppParser = {
           [serverJsIndex]: picListSalt
         });
         return {
-          serverUrl: serverUrls[serverid],
+          serverUrl: serverUrls[serverid - 1],
           picListSalt,
         };
       },
       () => {}
     );
   },
-  fetchImage() {
-
+  fetchPic(picUrl) {
+    console.log(picUrl);
+    return hhAppParser.GM_xhr_get(picUrl, '', {
+      overrideMimeType: '',
+      responseType: 'blob',
+    }).then(
+      picData => {
+        $('<img>').attr('src', window.URL.createObjectURL(picData.response)).appendTo('body');
+      },
+      () => {}
+    );
   },
   // a promise version of GM_xmlhttpRequest GET
-  GM_xhr_get(url) {
+  GM_xhr_get(url, baseUrl = hhAppConfig.baseUrl, xhrOptions) {
     return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        url: hhAppConfig.baseUrl + url,
+      const _xhrOptions = Object.assign({
+        url: baseUrl + url,
         method: 'GET',
         timeout: 20 * 1000,
         context: { resolve, reject },
-        overrideMimeType: "text/html;charset=" + document.characterSet,
+        overrideMimeType: 'text/html;charset=' + document.characterSet,
         onload: response => response.context.resolve(response),
-        onerror: err => err.context.reject(err)
-      })
+        onerror: err => err.context.reject(err),
+      }, xhrOptions);
+      console.log(_xhrOptions);
+      GM_xmlhttpRequest(_xhrOptions);
     });
   },
 };
@@ -980,8 +990,8 @@ const hhApp = {
   },
   // calculate sizes according to window
   windowResizeHandler() {
-    const ww = window.innerWidth;
-    const wh = window.innerHeight;
+    // @TODO const ww = window.innerWidth;
+    // @TODO const wh = window.innerHeight;
 
     hhApp.route();
   },
@@ -1007,11 +1017,8 @@ const hhApp = {
         hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
           const volumnid = Object.keys(comicInfo.comicVolumns)[0];
           const serverid = comicInfo.comicnServerId;
-          console.log(comicid);
-          console.log(volumnid);
-          console.log(serverid);
           hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
-            re => console.log(re),
+            re => hhAppParser.fetchPic(re[0]),
             () => {}
           );
         }, () => {});
