@@ -38,19 +38,16 @@ const hhAppUI = {
       }
     );
 
-    hhAppUI.refreshCoverSlider();
+    hhAppUI.refreshCoverSlider(false);
   },
-  refreshCoverSlider() {
+  refreshCoverSlider(sliderReturn = true) {
     // fetch comic list from '/top100.htm' or '/sj100.htm' or history
     // if one has not been fetched yet
     hhAppParser.fetchComicList(hhApp.currentComicList).then(comicList => {
-      hhAppUI.$coverSlider.changeList(comicList);
+      hhAppUI.$coverSlider.changeList(comicList, sliderReturn);
     }, () => {});
   },
   showComic(comicid, pageid) {
-    // if (comicid == null) {
-    //   hhAppUI.showErrPage();
-    // }
     $(hhAppWebpage.comic).appendTo('body');
     const $imageSlider = $('.image-slider');
     for (let i = 0; i < 2; i++) {
@@ -58,6 +55,15 @@ const hhAppUI = {
       $loadingImg.appendTo($imageSlider);
     }
     $('body').on('mousewheel', e => hhAppUI.sliderScroll(e.deltaY));
+
+    // hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
+    //   const volumnid = Object.keys(comicInfo.comicVolumns)[0];
+    //   const serverid = comicInfo.comicnServerId;
+    //   hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
+    //     re => hhAppParser.fetchPic(re[0]),
+    //     () => {}
+    //   );
+    // }, () => {});
   },
 
   sliderScroll(direction) {

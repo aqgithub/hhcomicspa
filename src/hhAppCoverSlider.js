@@ -142,11 +142,13 @@
       return true;
     };
 
-    $slider.changeList = (newCoverList = []) => {
+    $slider.changeList = (newCoverList = [], sliderReturn = true) => {
       // if new cover list smaller than old one, previous position
       // may cause slider invisible
-      $slider.coverFirstIndex = 0;
-      $slider.sliderMarginLeft = 0;
+      if (sliderReturn) {
+        $slider.coverFirstIndex = 0;
+        $slider.sliderMarginLeft = 0;
+      }
       return createSlider(newCoverList);
     };
     // change covers list

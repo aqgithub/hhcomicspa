@@ -65,15 +65,7 @@ const hhApp = {
       } else {
         const comicid    = router[2];
         const pageid     = router[3];
-        hhAppUI.showComic(comicid, pageid); // (comicid, pageid)
-        hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
-          const volumnid = Object.keys(comicInfo.comicVolumns)[0];
-          const serverid = comicInfo.comicnServerId;
-          hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
-            re => hhAppParser.fetchPic(re[0]),
-            () => {}
-          );
-        }, () => {});
+        hhAppUI.showComic(comicid, pageid);
       }
     }
   },

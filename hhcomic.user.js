@@ -208,11 +208,13 @@ const hhAppDefaultConfig = {
       return true;
     };
 
-    $slider.changeList = (newCoverList = []) => {
+    $slider.changeList = (newCoverList = [], sliderReturn = true) => {
       // if new cover list smaller than old one, previous position
       // may cause slider invisible
-      $slider.coverFirstIndex = 0;
-      $slider.sliderMarginLeft = 0;
+      if (sliderReturn) {
+        $slider.coverFirstIndex = 0;
+        $slider.sliderMarginLeft = 0;
+      }
       return createSlider(newCoverList);
     };
     // change covers list
@@ -729,19 +731,16 @@ const hhAppUI = {
       }
     );
 
-    hhAppUI.refreshCoverSlider();
+    hhAppUI.refreshCoverSlider(false);
   },
-  refreshCoverSlider() {
+  refreshCoverSlider(sliderReturn = true) {
     // fetch comic list from '/top100.htm' or '/sj100.htm' or history
     // if one has not been fetched yet
     hhAppParser.fetchComicList(hhApp.currentComicList).then(comicList => {
-      hhAppUI.$coverSlider.changeList(comicList);
+      hhAppUI.$coverSlider.changeList(comicList, sliderReturn);
     }, () => {});
   },
   showComic(comicid, pageid) {
-    // if (comicid == null) {
-    //   hhAppUI.showErrPage();
-    // }
     $(hhAppWebpage.comic).appendTo('body');
     const $imageSlider = $('.image-slider');
     for (let i = 0; i < 2; i++) {
@@ -749,6 +748,15 @@ const hhAppUI = {
       $loadingImg.appendTo($imageSlider);
     }
     $('body').on('mousewheel', e => hhAppUI.sliderScroll(e.deltaY));
+
+    // hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
+    //   const volumnid = Object.keys(comicInfo.comicVolumns)[0];
+    //   const serverid = comicInfo.comicnServerId;
+    //   hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
+    //     re => hhAppParser.fetchPic(re[0]),
+    //     () => {}
+    //   );
+    // }, () => {});
   },
 
   sliderScroll(direction) {
@@ -1013,15 +1021,7 @@ const hhApp = {
       } else {
         const comicid    = router[2];
         const pageid     = router[3];
-        hhAppUI.showComic(comicid, pageid); // (comicid, pageid)
-        hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
-          const volumnid = Object.keys(comicInfo.comicVolumns)[0];
-          const serverid = comicInfo.comicnServerId;
-          hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
-            re => hhAppParser.fetchPic(re[0]),
-            () => {}
-          );
-        }, () => {});
+        hhAppUI.showComic(comicid, pageid);
       }
     }
   },
