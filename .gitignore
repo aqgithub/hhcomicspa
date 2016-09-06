@@ -19,3 +19,6 @@ velocity*.js
 
 # log
 *.log*
+
+# build
+build

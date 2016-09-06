@@ -15,7 +15,7 @@
 
 'use strict';
 
-const hhAppConfig = {
+const hhAppDefaultConfig = {
   imageWidth:            600,
   imageHeight:           800,
   scrollStep:            20,
@@ -64,66 +64,16 @@ const hhAppConfig = {
   comicPageUrl:          comicid => `comic/${comicid}`,
 };
 
-const hhAppUI = {
-  $coverSlider: {},
-  showErrPage(showWholePage = true) {
-    // Oops, app cannot recongnize this page
-    if (showWholePage) {
-      $('<span>Oops, app cannot recongnize this page!!!</span>').appendTo('body');
-    }
-  },
-  showHomePage() {
-    $(hhAppWebpage.homePage).appendTo('body');
-    const comicids = hhApp.comicList[hhApp.currentComicList];
-    hhAppUI.$coverSlider = $('.list-slider-panel').hhAppCoverSlider(
-      hhApp.getComicsInfoByids(comicids),
-      {
-        _sliderMarginLeft: hhApp.sliderMarginLeft,
-        _coverFirstIndex: hhApp.coverFirstIndex,
-        // if not destory, animation function still works after routing
-        _coverClickHandler: {
-          func: coverUrl => {
-            hhApp.coverFirstIndex = hhAppUI.$coverSlider.coverFirstIndex;
-            hhApp.sliderMarginLeft = hhAppUI.$coverSlider.sliderMarginLeft;
-            hhApp.openUrl(coverUrl);
-          },
-          destory: true
-        },
-      }
-    );
-  },
-  showCoverSlider() {
-    const comicids = hhApp.comicList[hhApp.currentComicList];
-    hhAppUI.$coverSlider.changeList(hhApp.getComicsInfoByids(comicids));
-  },
-  showComic(comicid, pageid) {
-    // if (comicid == null) {
-    //   hhAppUI.showErrPage();
-    // }
-    $(hhAppWebpage.comic).appendTo('body');
-    const $imageSlider = $('.image-slider');
-    for (let i = 0; i < 2; i++) {
-      const $loadingImg = $(hhAppWebpage.image());
-      $loadingImg.appendTo($imageSlider);
-    }
-    $('body').on('mousewheel', e => hhAppUI.sliderScroll(e.deltaY));
-  },
-
-  sliderScroll(direction) {
-    $('.image-slider').css('margin-top', `-=${direction * hhApp.scrollStep}`);
-  },
-};
-
 !(() => {
   $.fn.hhAppCoverSlider = function(coverList = [], _sliderParams = { }) {
     // get params
     const {
-      _coverImgWidth,            // cover image width
-      _coverImgHeight,           // cover image height
-      _coverPanelWidth,          // cover div surrond  image
-      _coverPanelHeight,         // cover div surrond image
-      _coverMargin,              // cover panel margin between each other
-      _nullListHTML,             // html content of returning slider if coverList is null
+      _coverImgWidth,           // cover image width
+      _coverImgHeight,          // cover image height
+      _coverPanelWidth,         // cover div surrond  image
+      _coverPanelHeight,        // cover div surrond image
+      _coverMargin,             // cover panel margin between each other
+      _nullListHTML,            // html content of returning slider if coverList is null
       _coverFirstIndex,         // first cover of the slider's index of the list, by default
       _sliderMarginLeft,        // slider margin left to $parent, by default
       _coverClickHandler,       // callback when click on cover images
@@ -355,19 +305,23 @@ const hhAppUI = {
 })();
 
 const hhAppParser = {
-  // topListIndex 0 -> '/top100.htm', 1 -> '/sj100.htm'
-  fetchTopComic(comicListType = 'top100', forceRefetch = false, fetchAndReplace = true) {
-    if (comicListType == 'history') {
-      return [];
-    }
-    if (hhApp.comicList[comicListType].length > 0 && !forceRefetch) {
-      return hhApp.comicList[comicListType];
+  // forceRefetch: ignore existence in the store list, force fetching
+  // fetchAndReplace: modify the store list after fetching
+  fetchComicList(comicListType = 'top100', forceRefetch = false, fetchAndReplace = true) {
+    // if exist and not forceRefetch, directly return what stored in the list
+    if (hhApp.definedInDepth(hhApp.comicList, comicListType, true) && !forceRefetch) {
+      const comicids = hhApp.comicList[comicListType];
+      return Promise.resolve(comicids.map(comicid => ({
+        comicid,
+        comicUrl: hhAppConfig.baseUrl + hhAppConfig.comicPageUrl(comicid),
+        coverImageUrl: hhApp.comicCache[comicid].coverImageUrl,
+        comicTitle: hhApp.comicCache[comicid].comicTitle,
+      })));
     }
     return hhAppParser.GM_xhr_get(hhAppConfig.comicListUrl(comicListType)).then(
       _comicListHTML => {
         const comicListHTML = _comicListHTML.responseText;
         let comicList = [];
-        let comicsInfo = {};
         // get String segments which contain comic infomatiom from HTML"/top100.htm"
         if (comicListType == 'top100' || comicListType == 'sj100') {
           const topComicsInfo = comicListHTML.match(hhAppConfig.reg_TopComic);
@@ -376,26 +330,31 @@ const hhAppParser = {
             // will get useless infomation except for those listed in return
             const arr = info.split(`"`);
             const comicid = arr[2].match(/\d+/)[0];
-            Object.assign(comicsInfo, {
-              [comicid]: {
-                comicTitle: arr[10].indexOf('%u') > -1 ? unescape(arr[10]): arr[10],
-                coverImageUrl: arr[6],
-              }
-            });
-            return comicid;
+            const comicTitle = arr[10].indexOf('%u') > -1 ? unescape(arr[10]): arr[10];
+            const coverImageUrl = arr[6];
+            return {
+              comicid,
+              coverImageUrl,
+              comicTitle,
+              comicUrl: hhAppConfig.baseUrl + hhAppConfig.comicPageUrl(comicid),
+            };
           });
         }
         if (fetchAndReplace) {
-          comicList.forEach(comicid => {
+          hhApp.comicList[comicListType] = [];
+
+          comicList.forEach(comicInfo => {
+            const comicid = comicInfo.comicid;
+            hhApp.comicList[comicListType].push(comicid);
+
             if (hhApp.comicCache.hasOwnProperty(comicid)) {
-              Object.assign(hhApp.comicCache[comicid], comicsInfo[comicid]);
+              Object.assign(hhApp.comicCache[comicid], comicInfo);
             } else {
               Object.assign(hhApp.comicCache, {
-                [comicid]: comicsInfo[comicid],
-              })
+                [comicid]: comicInfo,
+              });
             }
-          })
-          hhApp.comicList[comicListType] = comicList;
+          });
         }
         return comicList;
       },
@@ -405,8 +364,8 @@ const hhAppParser = {
     );
   },
   fetchComicInfo(comicid, forceRefetch = false, fetchAndReplace = true) {
-    if (hhApp.definedInDepth(hhApp.comicCache, [comicid, 'comicVolumnInfo'], true) && !forceRefetch) {
-      return hhApp.comicCache[comicid];
+    if (hhApp.definedInDepth(hhApp.comicCache, [comicid, 'comicVolumns'], true) && !forceRefetch) {
+      return Promise.resolve(hhApp.comicCache[comicid]);
     }
     // if (hhApp.comicCache.hasOwnProperty(comicid) && hhApp.comicCache[comicid].hasOwnProperty('comicVolumnInfo') && !forceRefetch) {
     //   return hhApp.comicCache[comicid];
@@ -422,6 +381,8 @@ const hhAppParser = {
         const comicTitle      = comicInfoSplit[2];
         const comicAuthor     = comicInfoSplit[15].match(hhAppConfig.reg_ComicInfoTitle)[1];
         const comicBrief      = comicInfoSplit[21].match(hhAppConfig.reg_ComicInfoBref)[1];
+        //
+        const lastFetchTime   = new Date().getTime();
         // collection of <li> tag containing volumns info
         const comicVolumnLis  = comicPageHTML.match(hhAppConfig.reg_ComicVolumnLis);
         // volumn server, constant in the same comic
@@ -445,6 +406,7 @@ const hhAppParser = {
           comicBrief,
           comicnServerId,
           comicVolumns,
+          lastFetchTime,
         };
         if (fetchAndReplace) {
           Object.assign(hhApp.comicCache, {
@@ -458,15 +420,15 @@ const hhAppParser = {
       }
     )
   },
-  fetchVolumnImageUrls(comicid, volumnid, serverid, forceRefetch = false, fetchAndReplace = true) {
+  fetchVolumnPicListUrls(comicid, volumnid, serverid, forceRefetch = false, fetchAndReplace = true) {
     if (hhApp.definedInDepth(hhApp.comicCache, [comicid, 'comciVolumns', volumnid, 'imageids'], true) && !forceRefetch) {
-      return hhApp.comicCache[comicid].comicVolumns[volumnid].imageids;
+      return Promise.resolve(hhApp.comicCache[comicid].comicVolumns[volumnid].imageids);
     }
     return hhAppParser.GM_xhr_get(hhAppConfig.volumnUrl(comicid, volumnid, serverid)).then(
       _volumnHTML => {
         const volumnHTML        = _volumnHTML.responseText;
         // volumnPicList is long string like 'abczfgzghzjazjjaz...'
-        // get salt 'abcdefghjkz' from [serverJsIndex].js
+        // get salt(picListSalt) 'abcdefghjkz' from [serverJsIndex].js
         // replace each character in the long string by char's index in the salt
         // notice the char 'z' in the salt, not replace it, but use it as a split flag
         // then split the replaced string by the flag and will get an array like:
@@ -476,12 +438,12 @@ const hhAppParser = {
         let volumnPicList       = volumnHTML.match(hhAppConfig.reg_VolumnPicList)[1];
         const serverJsIndex     = volumnHTML.match(hhAppConfig.reg_ServerJsIndex)[1];
         return hhAppParser.fetchServerUrls(serverJsIndex, serverid).then(
-          ({ serverUrl, serverEncode }) => {
+          ({ serverUrl, picListSalt }) => {
             for (let i = 0; i < 10; i++) {
-              const reg = new RegExp(`${serverEncode.charAt(i)}`, 'g');
+              const reg = new RegExp(`${picListSalt.charAt(i)}`, 'g');
               volumnPicList = volumnPicList.replace(reg, i);
             }
-            const volumnPicListSplit  = volumnPicList.split(serverEncode.charAt(10));
+            const volumnPicListSplit  = volumnPicList.split(picListSalt.charAt(10));
             const volumnPicListDecode = volumnPicListSplit.map(asc => String.fromCharCode(asc)).join('');
             const volumnPicListUrls   = volumnPicListDecode.split('|').map(url => serverUrl + url);
 
@@ -494,16 +456,16 @@ const hhAppParser = {
     );
   },
   fetchServerUrls(serverJsIndex, serverid) {
-    if (hhApp.serverUrls.hasOwnProperty('serverJsIndex')) {
-      return {
+    if (hhApp.serverUrls.hasOwnProperty(serverJsIndex)) {
+      return Promise.resolve({
         serverUrl: hhApp.serverUrls[serverJsIndex][serverid],
-        serverEncode: hhApp.serEncodes[serverJsIndex],
-      };
+        picListSalt: hhApp.picListSalts[serverJsIndex],
+      });
     }
     return hhAppParser.GM_xhr_get(hhAppConfig.serverJsUrl(serverJsIndex)).then(
       _serverJsHTML => {
         const serverJsHTML  = _serverJsHTML.responseText;
-        const serverEncode  = serverJsHTML.match(hhAppConfig.reg_ServerEncode)[1];
+        const picListSalt  = serverJsHTML.match(hhAppConfig.reg_ServerEncode)[1];
         let serverMatch     = '';
         let serverUrls      = [];
         while ((serverMatch = hhAppConfig.reg_ServerList.exec(serverJsHTML)) != null) {
@@ -512,16 +474,19 @@ const hhAppParser = {
         Object.assign(hhApp.serverUrls, {
           [serverJsIndex]: serverUrls
         });
-        Object.assign(hhApp.serverEncodes, {
-          [serverJsIndex]: serverEncode
+        Object.assign(hhApp.picListSalts, {
+          [serverJsIndex]: picListSalt
         });
         return {
           serverUrl: serverUrls[serverid],
-          serverEncode,
+          picListSalt,
         };
       },
       () => {}
     );
+  },
+  fetchImage() {
+
   },
   // a promise version of GM_xmlhttpRequest GET
   GM_xhr_get(url) {
@@ -539,195 +504,9 @@ const hhAppParser = {
   },
 };
 
-const hhAppWebpage = {
-  homePage: `
-    <div class="covers"></div>
-    <div class="search-panel">
-      <input id="search-input" type="text" />
-      <a class="search-btn">搜索漫画</a>
-    </div>
-    <div class="list-panel">
-      <div class="list-slider-panel"></div>
-    </div>
-  `,
-  comic: `
-    <div class="image-panel">
-      <div class="image-slider"></div>
-    </div>
-  `,
-  image(imageData) {
-    return imageData ?
-      `` :
-      `
-        <div class="loading-img" style="
-          width: ${hhApp.imageWidth}px; height: ${hhApp.imageHeight}px"
-        >
-          <div class="loading-img-spinner">
-            <div class="loading-img-bounce1"></div>
-            <div class="loading-img-bounce2"></div>
-            <div class="loading-img-bounce3"></div>
-          </div>
-        </div>
-      `
-  },
-  style: `
-    body,div,img,span,a,input {
-      font: 14px/100% Arial, Helvetica, sans-serif;
-      background: #f9f7f6;
-      box-sizing: border-box;
-    }
-    html,body {
-      text-align: center;
-      height: 100%;
-      padding: 0;
-      margin: 0;
-    }
-    .loading-img {
-      margin: 0 auto;
-      background: #333333;
-      text-align: center;
-      border-top: 1px solid #333333;
-    }
-    .loading-img-spinner {
-      margin: 50% auto 0;
-      width: 150px;
-      text-align: center;
-      background: inherit;
-      -moz-user-select: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-    .loading-img-spinner > div {
-      width: 30px;
-      height: 30px;
-      background-color: #67CF22;
-      border-radius: 100%;
-      display: inline-block;
-      -webkit-animation: loading-img-bouncedelay 1.4s infinite ease-in-out;
-      animation: loading-img-bouncedelay 1.4s infinite ease-in-out;
-      /* Prevent first frame from flickering when animation starts */
-      -webkit-animation-fill-mode: both;
-      animation-fill-mode: both;
-    }
-    .loading-img-spinner .loading-img-bounce1 {
-      -webkit-animation-delay: -0.32s;
-      animation-delay: -0.32s;
-    }
-    .loading-img-spinner .loading-img-bounce2 {
-      -webkit-animation-delay: -0.16s;
-      animation-delay: -0.16s;
-    }
-    @-webkit-keyframes loading-img-bouncedelay {
-      0%, 80%, 100% { -webkit-transform: scale(0.0) }
-      40% { -webkit-transform: scale(1.0) }
-    }
-    @keyframes loading-img-bouncedelay {
-      0%, 80%, 100% {
-        transform: scale(0.0);
-        -webkit-transform: scale(0.0);
-      } 40% {
-        transform: scale(1.0);
-        -webkit-transform: scale(1.0);
-      }
-    }
-    .image-panel {
-      padding: 0 20px;
-      display: inline-block;
-      height: 100%;
-      background: white;
-      overflow: hidden;
-      margin: 0 auto;
-      position: relative;
-    }
-    .image-slider {
-      background: white;
-    }
-
-    .search-panel {
-      position: absolute;
-      width: 40%;
-      left: 30%;
-      top: 35%;
-    }
-    #search-input {
-      padding: 0.33em 0.25em;
-      width: calc(100% - 5.4em);
-      background: white;
-      color: #AFB5BB;
-      font-size: 1.5em;
-      border: none;
-    }
-    #search-input:focus {
-      box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
-    }
-    .search-btn, .search-btn:visited {
-      display: inline-block;
-    	outline: none;
-    	cursor: pointer;
-    	text-align: center;
-    	text-decoration: none;
-    	padding: .75em 1.7em .75em;
-    	text-shadow: 0 1px 1px rgba(0, 0, 0, .3);
-    	box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
-      -moz-user-select: none;
-      -webkit-user-select: none;
-      user-select: none;
-      position: relative;
-	    top: -2px;
-    }
-    .search-btn:hover {
-      text-shadow: 0 1px 2px rgba(0, 0, 0, .3);
-    }
-    .search-btn:active {
-	    top: -1px;
-    }
-
-    /*  list-panel start  */
-    .list-panel {
-      width: 70%;
-      position: absolute;
-      left: 15%;
-      top: 52%;
-    }
-    .list-slider-panel {
-      overflow: hidden;
-      white-space: nowrap;
-      width: 100%;
-      height: 240px;
-    }
-    .list-slider {
-      margin-top: 20px;
-    }
-    .cover-panel {
-      display: inline-block;
-      position: relative;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      background: white;
-      cursor: pointer;
-      transition: transform 0.3s, width 0.3s, height 0.3s;
-    }
-    .cover-panel:hover {
-      transform: rotate(0) !important;
-      width: 198px;
-      height: 264px;
-      font-size: 1.5em;
-      z-index: 199;
-    }
-    .cover-panel img {
-      margin-top: 5px;
-    }
-    .cover-panel span {
-      background: transparent;
-      font-size: inherit;
-      position: absolute;
-      bottom:  calc(12px - 0.6em);
-      left: 12px;
-    }
-    /*  list-panel end  */
-  `
-}
+const hhAppPicViewer = {
+  
+};
 
 const hhAppTween = {
   Linear: (t, b, c, d) => { return c*t/d + b; },
@@ -900,26 +679,282 @@ const hhAppTween = {
 
 Math.tween = hhAppTween;
 
-const hhApp = {
-  imageWidth:            600,
-  imageHeight:           800,
-  scrollStep:            20,
-  comicCache:            {},
+const hhAppUI = {
+  // current comic list shown in homipage
+  currentComicList:     'top100',
+  // store slider's first cover's index of the list, used when routing back to homepage
+  coverFirstIndex:       0,
+  // store slider margin-left to slider-panel, used when routing back to homepage
+  sliderMarginLeft:      0,
 
-  // index of list shwon in homepage
-  listShowIndex:         0,
+  // coverSlider instance
+  $coverSlider:          {},
+
+  // Err occurs somewhere
+  showErrPage(showWholePage = true) {
+    // Oops, app cannot recongnize this page
+    if (showWholePage) {
+      $('<span>Oops, app cannot recongnize this page!!!</span>').appendTo('body');
+    }
+  },
+
+  // home page
+  showHomePage() {
+    $(hhAppWebpage.homePage).appendTo('body');
+    // init coverSlider
+    hhAppUI.$coverSlider = $('.list-slider-panel').hhAppCoverSlider(
+      [],
+      {
+        _sliderMarginLeft: hhAppUI.sliderMarginLeft,
+        _coverFirstIndex: hhAppUI.coverFirstIndex,
+        // if not destory, animation function still works after routing
+        _coverClickHandler: {
+          func: coverUrl => {
+            hhAppUI.coverFirstIndex = hhAppUI.$coverSlider.coverFirstIndex;
+            hhAppUI.sliderMarginLeft = hhAppUI.$coverSlider.sliderMarginLeft;
+            hhApp.openUrl(coverUrl);
+          },
+          destory: true
+        },
+      }
+    );
+
+    hhAppUI.refreshCoverSlider();
+  },
+  refreshCoverSlider() {
+    // fetch comic list from '/top100.htm' or '/sj100.htm' or history
+    // if one has not been fetched yet
+    hhAppParser.fetchComicList(hhApp.currentComicList).then(comicList => {
+      hhAppUI.$coverSlider.changeList(comicList);
+    }, () => {});
+  },
+  showComic(comicid, pageid) {
+    // if (comicid == null) {
+    //   hhAppUI.showErrPage();
+    // }
+    $(hhAppWebpage.comic).appendTo('body');
+    const $imageSlider = $('.image-slider');
+    for (let i = 0; i < 2; i++) {
+      const $loadingImg = $(hhAppWebpage.image());
+      $loadingImg.appendTo($imageSlider);
+    }
+    $('body').on('mousewheel', e => hhAppUI.sliderScroll(e.deltaY));
+  },
+
+  sliderScroll(direction) {
+    $('.image-slider').css('margin-top', `-=${direction * hhAppConfig.scrollStep}`);
+  },
+};
+
+const hhAppWebpage = {
+  homePage: `
+    <div class="covers"></div>
+    <div class="search-panel">
+      <input id="search-input" type="text" />
+      <a class="search-btn">搜索漫画</a>
+    </div>
+    <div class="list-panel">
+      <div class="list-slider-panel"></div>
+    </div>
+  `,
+  comic: `
+    <div class="image-panel">
+      <div class="image-slider"></div>
+    </div>
+  `,
+  image(imageData) {
+    return imageData ?
+      `` :
+      `
+        <div class="loading-img" style="
+          width: ${hhAppConfig.imageWidth}px; height: ${hhAppConfig.imageHeight}px"
+        >
+          <div class="loading-img-spinner">
+            <div class="loading-img-bounce1"></div>
+            <div class="loading-img-bounce2"></div>
+            <div class="loading-img-bounce3"></div>
+          </div>
+        </div>
+      `
+  },
+  style: `
+    body,div,img,span,a,input {
+      font: 14px/100% Arial, Helvetica, sans-serif;
+      background: #f9f7f6;
+      box-sizing: border-box;
+    }
+    html,body {
+      text-align: center;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+    }
+    .loading-img {
+      margin: 0 auto;
+      background: #333333;
+      text-align: center;
+      border-top: 1px solid #333333;
+    }
+    .loading-img-spinner {
+      margin: 50% auto 0;
+      width: 150px;
+      text-align: center;
+      background: inherit;
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .loading-img-spinner > div {
+      width: 30px;
+      height: 30px;
+      background-color: #67CF22;
+      border-radius: 100%;
+      display: inline-block;
+      -webkit-animation: loading-img-bouncedelay 1.4s infinite ease-in-out;
+      animation: loading-img-bouncedelay 1.4s infinite ease-in-out;
+      /* Prevent first frame from flickering when animation starts */
+      -webkit-animation-fill-mode: both;
+      animation-fill-mode: both;
+    }
+    .loading-img-spinner .loading-img-bounce1 {
+      -webkit-animation-delay: -0.32s;
+      animation-delay: -0.32s;
+    }
+    .loading-img-spinner .loading-img-bounce2 {
+      -webkit-animation-delay: -0.16s;
+      animation-delay: -0.16s;
+    }
+    @-webkit-keyframes loading-img-bouncedelay {
+      0%, 80%, 100% { -webkit-transform: scale(0.0) }
+      40% { -webkit-transform: scale(1.0) }
+    }
+    @keyframes loading-img-bouncedelay {
+      0%, 80%, 100% {
+        transform: scale(0.0);
+        -webkit-transform: scale(0.0);
+      } 40% {
+        transform: scale(1.0);
+        -webkit-transform: scale(1.0);
+      }
+    }
+    .image-panel {
+      padding: 0 20px;
+      display: inline-block;
+      height: 100%;
+      background: white;
+      overflow: hidden;
+      margin: 0 auto;
+      position: relative;
+    }
+    .image-slider {
+      background: white;
+    }
+
+    .search-panel {
+      position: absolute;
+      width: 40%;
+      left: 30%;
+      top: 35%;
+    }
+    #search-input {
+      padding: 0.33em 0.25em;
+      width: calc(100% - 5.4em);
+      background: white;
+      color: #AFB5BB;
+      font-size: 1.5em;
+      border: none;
+    }
+    #search-input:focus {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+    }
+    .search-btn, .search-btn:visited {
+      display: inline-block;
+    	outline: none;
+    	cursor: pointer;
+    	text-align: center;
+    	text-decoration: none;
+    	padding: .75em 1.7em .75em;
+    	text-shadow: 0 1px 1px rgba(0, 0, 0, .3);
+    	box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      user-select: none;
+      position: relative;
+	    top: -2px;
+    }
+    .search-btn:hover {
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+    .search-btn:active {
+	    top: -1px;
+    }
+
+    /*  list-panel start  */
+    .list-panel {
+      width: 70%;
+      position: absolute;
+      left: 15%;
+      top: 52%;
+    }
+    .list-slider-panel {
+      overflow: hidden;
+      white-space: nowrap;
+      width: 100%;
+      height: 240px;
+    }
+    .list-slider {
+      margin-top: 20px;
+    }
+    .cover-panel {
+      display: inline-block;
+      position: relative;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: white;
+      cursor: pointer;
+      transition: transform 0.3s, width 0.3s, height 0.3s;
+    }
+    .cover-panel:hover {
+      transform: rotate(0) !important;
+      width: 198px;
+      height: 264px;
+      font-size: 1.5em;
+      z-index: 199;
+    }
+    .cover-panel img {
+      margin-top: 5px;
+    }
+    .cover-panel span {
+      background: transparent;
+      font-size: inherit;
+      position: absolute;
+      bottom:  calc(12px - 0.6em);
+      left: 12px;
+    }
+    /*  list-panel end  */
+  `
+}
+
+const hhAppConfig = {
+
+};
+
+const hhApp = {
+  comicCache:            {},
+  // element contains a list of comicid
+  comicList:            { top100: [], sj100: [], history: [] },
+  //
+  serverUrls:           {},
+  picListSalts:         {},
+
+  // current comic list shown in homipage
+  currentComicList:     'top100',
   // slider's first cover's index of the list
   coverFirstIndex:       0,
   // slider margin-left to slider-panel, used when routing back to homepage
   sliderMarginLeft:      0,
 
-  // element contains a list of comicid
-  comicList:            { top100: [], sj100: [], history: [] },
-  // current comic list shown in homipage
-  currentComicList:     'top100',
-  //
-  serverUrls:           {},
-  serverEncodes:        {},
   //
   init() {
     // check browser
@@ -931,13 +966,12 @@ const hhApp = {
     GM_addStyle(hhAppWebpage.style);
 
     hhApp.initConfig();
-    hhApp.listShowIndex = hhAppConfig.defaultListShowIndex;
     hhApp.initListener();
     hhApp.windowResizeHandler();
   },
   initConfig() {
     // load custom config from localStorage
-    Object.assign(hhAppConfig, null);
+    Object.assign(hhAppConfig, hhAppDefaultConfig, null);
   },
   // bind event
   initListener() {
@@ -961,15 +995,6 @@ const hhApp = {
     //
     if (loc.pathname == '/') {
       hhAppUI.showHomePage();
-      // fetch top comic list from '/top100.htm' and '/sj100.htm'
-      // if one has not been fetched yet
-      hhAppParser.fetchTopComic(hhApp.currentComicList).then(() => {
-        hhAppUI.showCoverSlider();
-      }, () => {});
-      // fetch history comic list from localStorage
-      // each time when location changed
-      // todo
-      hhApp.comicList_history == [];
     } else {
       // router = [pathname, ('comic'|'xiee'|sth unkown), comicid, pageid]
       const router = loc.pathname.match(hhAppConfig.reg_ComicPathname);
@@ -980,9 +1005,12 @@ const hhApp = {
         const pageid     = router[3];
         hhAppUI.showComic(comicid, pageid); // (comicid, pageid)
         hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
-          const volumnid = comicInfo.comicVolumnInfo[0].comicVolumnId;
+          const volumnid = Object.keys(comicInfo.comicVolumns)[0];
           const serverid = comicInfo.comicnServerId;
-          hhAppParser.fetchVolumnImageUrls(comicid, volumnid, serverid).then(
+          console.log(comicid);
+          console.log(volumnid);
+          console.log(serverid);
+          hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
             re => console.log(re),
             () => {}
           );
@@ -995,15 +1023,7 @@ const hhApp = {
     history.pushState(null, '', url);
     hhApp.route();
   },
-  //
-  getComicsInfoByids(comicids) {
-    return comicids.map(comicid => ({
-      comicid,
-      comicUrl: hhAppConfig.baseUrl + hhAppConfig.comicPageUrl(comicid),
-      coverImageUrl: hhApp.comicCache[comicid].coverImageUrl,
-      comicTitle: hhApp.comicCache[comicid].comicTitle,
-    }));
-  },
+
   definedInDepth(parent, depth, hasChild) {
     let _parent = parent;
     const _depth = typeof depth === 'string' ? [depth] : depth;
@@ -1012,7 +1032,11 @@ const hhApp = {
       if (!_parent.hasOwnProperty(_child)) return false;
       _parent = _parent[_child];
     }
-    if (hasChild && Object.keys(parent).length == 0) return false;
+    if (hasChild) {
+      if ( _parent instanceof Array) return _parent.length > 0;
+      if (typeof _parent !== 'object') return false;
+      return Object.keys(parent).length > 0;
+    }
     return true;
   },
 };

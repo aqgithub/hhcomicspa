@@ -14,6 +14,7 @@
   },
   "globals": {
     "hhAppConfig": true,
+    "hhAppDefaultConfig": true,
     "hhAppParser": true,
     "hhAppUI": true,
     "hhApp": true,

@@ -2,12 +2,12 @@
   $.fn.hhAppCoverSlider = function(coverList = [], _sliderParams = { }) {
     // get params
     const {
-      _coverImgWidth,            // cover image width
-      _coverImgHeight,           // cover image height
-      _coverPanelWidth,          // cover div surrond  image
-      _coverPanelHeight,         // cover div surrond image
-      _coverMargin,              // cover panel margin between each other
-      _nullListHTML,             // html content of returning slider if coverList is null
+      _coverImgWidth,           // cover image width
+      _coverImgHeight,          // cover image height
+      _coverPanelWidth,         // cover div surrond  image
+      _coverPanelHeight,        // cover div surrond image
+      _coverMargin,             // cover panel margin between each other
+      _nullListHTML,            // html content of returning slider if coverList is null
       _coverFirstIndex,         // first cover of the slider's index of the list, by default
       _sliderMarginLeft,        // slider margin left to $parent, by default
       _coverClickHandler,       // callback when click on cover images

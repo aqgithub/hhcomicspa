@@ -1,4 +1,4 @@
-const hhAppConfig = {
+const hhAppDefaultConfig = {
   imageWidth:            600,
   imageHeight:           800,
   scrollStep:            20,

@@ -1,3 +1,4 @@
+/* @TODO: remove comments */
 module.exports = function(grunt) {
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
@@ -5,21 +6,20 @@ module.exports = function(grunt) {
       dist: {
         options: {
           separator: '\n',
-          process: true
+          process: true,
         },
-        src: ['src/header.js', 'src/hhAppConfig.js', 'src/hhAppUI.js', 'src/hhAppCoverSlider.js',
-              'src/hhAppParser.js', 'src/hhAppWebpage.js', 'src/hhAppTween.js', 'src/hhApp.js'],
+        src: ['src/header.js', 'src/hhApp?*.js', 'src/hhApp.js', ],
         dest: 'hhcomic.user.js'
-      }
+      },
     },
     watch: {
       files: ['src/**/*.js'],
-      tasks: ['default']
-    }
+      tasks: ['default'],
+    },
   });
 
   grunt.registerTask('default', [
-    'concat'
+    'concat',
   ]);
 
   grunt.loadNpmTasks('grunt-contrib-concat');

@@ -1,23 +1,22 @@
-const hhApp = {
-  imageWidth:            600,
-  imageHeight:           800,
-  scrollStep:            20,
-  comicCache:            {},
+const hhAppConfig = {
 
-  // index of list shwon in homepage
-  listShowIndex:         0,
+};
+
+const hhApp = {
+  comicCache:            {},
+  // element contains a list of comicid
+  comicList:            { top100: [], sj100: [], history: [] },
+  //
+  serverUrls:           {},
+  picListSalts:         {},
+
+  // current comic list shown in homipage
+  currentComicList:     'top100',
   // slider's first cover's index of the list
   coverFirstIndex:       0,
   // slider margin-left to slider-panel, used when routing back to homepage
   sliderMarginLeft:      0,
 
-  // element contains a list of comicid
-  comicList:            { top100: [], sj100: [], history: [] },
-  // current comic list shown in homipage
-  currentComicList:     'top100',
-  //
-  serverUrls:           {},
-  serverEncodes:        {},
   //
   init() {
     // check browser
@@ -29,13 +28,12 @@ const hhApp = {
     GM_addStyle(hhAppWebpage.style);
 
     hhApp.initConfig();
-    hhApp.listShowIndex = hhAppConfig.defaultListShowIndex;
     hhApp.initListener();
     hhApp.windowResizeHandler();
   },
   initConfig() {
     // load custom config from localStorage
-    Object.assign(hhAppConfig, null);
+    Object.assign(hhAppConfig, hhAppDefaultConfig, null);
   },
   // bind event
   initListener() {
@@ -59,15 +57,6 @@ const hhApp = {
     //
     if (loc.pathname == '/') {
       hhAppUI.showHomePage();
-      // fetch top comic list from '/top100.htm' and '/sj100.htm'
-      // if one has not been fetched yet
-      hhAppParser.fetchTopComic(hhApp.currentComicList).then(() => {
-        hhAppUI.showCoverSlider();
-      }, () => {});
-      // fetch history comic list from localStorage
-      // each time when location changed
-      // todo
-      hhApp.comicList_history == [];
     } else {
       // router = [pathname, ('comic'|'xiee'|sth unkown), comicid, pageid]
       const router = loc.pathname.match(hhAppConfig.reg_ComicPathname);
@@ -78,9 +67,12 @@ const hhApp = {
         const pageid     = router[3];
         hhAppUI.showComic(comicid, pageid); // (comicid, pageid)
         hhAppParser.fetchComicInfo(comicid).then(comicInfo => {
-          const volumnid = comicInfo.comicVolumnInfo[0].comicVolumnId;
+          const volumnid = Object.keys(comicInfo.comicVolumns)[0];
           const serverid = comicInfo.comicnServerId;
-          hhAppParser.fetchVolumnImageUrls(comicid, volumnid, serverid).then(
+          console.log(comicid);
+          console.log(volumnid);
+          console.log(serverid);
+          hhAppParser.fetchVolumnPicListUrls(comicid, volumnid, serverid).then(
             re => console.log(re),
             () => {}
           );
@@ -93,15 +85,7 @@ const hhApp = {
     history.pushState(null, '', url);
     hhApp.route();
   },
-  //
-  getComicsInfoByids(comicids) {
-    return comicids.map(comicid => ({
-      comicid,
-      comicUrl: hhAppConfig.baseUrl + hhAppConfig.comicPageUrl(comicid),
-      coverImageUrl: hhApp.comicCache[comicid].coverImageUrl,
-      comicTitle: hhApp.comicCache[comicid].comicTitle,
-    }));
-  },
+
   definedInDepth(parent, depth, hasChild) {
     let _parent = parent;
     const _depth = typeof depth === 'string' ? [depth] : depth;
@@ -110,7 +94,11 @@ const hhApp = {
       if (!_parent.hasOwnProperty(_child)) return false;
       _parent = _parent[_child];
     }
-    if (hasChild && Object.keys(parent).length == 0) return false;
+    if (hasChild) {
+      if ( _parent instanceof Array) return _parent.length > 0;
+      if (typeof _parent !== 'object') return false;
+      return Object.keys(parent).length > 0;
+    }
     return true;
   },
 };

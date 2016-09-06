@@ -19,7 +19,7 @@ const hhAppWebpage = {
       `` :
       `
         <div class="loading-img" style="
-          width: ${hhApp.imageWidth}px; height: ${hhApp.imageHeight}px"
+          width: ${hhAppConfig.imageWidth}px; height: ${hhAppConfig.imageHeight}px"
         >
           <div class="loading-img-spinner">
             <div class="loading-img-bounce1"></div>
