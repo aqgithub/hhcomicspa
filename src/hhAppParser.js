@@ -179,7 +179,6 @@ const hhAppParser = {
     );
   },
   fetchPic(picUrl) {
-    console.log(picUrl);
     return hhAppParser.GM_xhr_get(picUrl, '', {
       overrideMimeType: '',
       responseType: 'blob',
@@ -202,7 +201,6 @@ const hhAppParser = {
         onload: response => response.context.resolve(response),
         onerror: err => err.context.reject(err),
       }, xhrOptions);
-      console.log(_xhrOptions);
       GM_xmlhttpRequest(_xhrOptions);
     });
   },

@@ -2,26 +2,34 @@ const hhAppConfig = {
 
 };
 
+// model, utils and main funcs like init(), route(), openUrl(), etc
 const hhApp = {
-  comicCache:            {},
-  // element contains a list of comicid
+  // comicCache stores comics information
+  // {
+  //   [comicid]: {
+  //     omicid: [comicid], coverImageUrl, comicUrl, comicTitle,
+  // NOTICE: parser will get those above by fetchComicList(). and whole info by fetchComicInfo()
+  //     comicBrief, comicAuthor, comciServerId, lastFetchTime,
+  //     comicVolumns: { [volumnid]: { volumnTitle } , ... },
+  // NOTICE: comicVolumns here only stores id and title
+  //   },
+  //   ...
+  // }
+  comicCache:           {},
+  // every element contains a certain list of comicid, filled by fetchComicList()
   comicList:            { top100: [], sj100: [], history: [] },
-  //
+  // these two object below should share same keys like [6. 8. 10],
+  // fetched by fetchServerUrls(), used when generating comic pics url
+  // which is a combination of relative serverUrl and what decoded by certain picListSalt
   serverUrls:           {},
   picListSalts:         {},
 
-  // current comic list shown in homipage
-  currentComicList:     'top100',
-  // slider's first cover's index of the list
-  coverFirstIndex:       0,
-  // slider margin-left to slider-panel, used when routing back to homepage
-  sliderMarginLeft:      0,
-
-  //
+  // init the whole APP
   init() {
-    // check browser
+    // check browser to detemine if this APP can work properly
+    // @TODO not done yet
     const browser = 0;
-    if (browser == 1 /* todo */) {
+    if (browser == 1 ) {
       hhApp.showErrPage();
     }
     window.stop();
@@ -31,22 +39,25 @@ const hhApp = {
     hhApp.initListener();
     hhApp.windowResizeHandler();
   },
+  // init config, hhAppConfig will be used by the whole APP
   initConfig() {
-    // load custom config from localStorage
-    Object.assign(hhAppConfig, hhAppDefaultConfig, null);
+    // @TODO load custom config from localStorage
+    const hhAppLocalConfig = {};
+    Object.assign(hhAppConfig, hhAppDefaultConfig, hhAppLocalConfig);
   },
   // bind event
   initListener() {
     window.onpopstate = () => hhApp.route();
     window.onresize = () => hhApp.windowResizeHandler();
   },
-  // calculate sizes according to window
+  // recalculate sizes according to window, then route() to refresh the page
   windowResizeHandler() {
     // @TODO const ww = window.innerWidth;
     // @TODO const wh = window.innerHeight;
 
     hhApp.route();
   },
+  //
   route(loc = window.location) {
     // to make sure an empty <doby> tag exists in the page
     if ($('body').length == 0) {
@@ -54,13 +65,14 @@ const hhApp = {
     } else {
       $('body').empty();
     }
-    //
+    
     if (loc.pathname == '/') {
       hhAppUI.showHomePage();
     } else {
       // router = [pathname, ('comic'|'xiee'|sth unkown), comicid, pageid]
       const router = loc.pathname.match(hhAppConfig.reg_ComicPathname);
       if (router == null) {
+        // redirect to homepage if location is not href to a certain comic
         hhApp.openUrl(hhAppConfig.baseUrl);
       } else {
         const comicid    = router[2];
@@ -69,13 +81,15 @@ const hhApp = {
       }
     }
   },
-  // spa open method
+  // special open method, not using window.open for reducing request from server
   openUrl(url) {
     history.pushState(null, '', url);
     hhApp.route();
   },
-
-  definedInDepth(parent, depth, hasChild) {
+  // find out if parent has a child structor as the depth indicates,
+  // hasChild flag equals true means object deepest in depth should have child too
+  // @TODO need to be redesigned for using more convinently
+  definedInDepth(parent, depth, hasChild = false) {
     let _parent = parent;
     const _depth = typeof depth === 'string' ? [depth] : depth;
     for (let i = 0; i < _depth.length; i++) {

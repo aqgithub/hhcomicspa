@@ -43,7 +43,7 @@ const hhAppUI = {
   refreshCoverSlider(sliderReturn = true) {
     // fetch comic list from '/top100.htm' or '/sj100.htm' or history
     // if one has not been fetched yet
-    hhAppParser.fetchComicList(hhApp.currentComicList).then(comicList => {
+    hhAppParser.fetchComicList(hhAppUI.currentComicList).then(comicList => {
       hhAppUI.$coverSlider.changeList(comicList, sliderReturn);
     }, () => {});
   },
