@@ -77,6 +77,7 @@ const hhAppDefaultConfig = {
       _coverFirstIndex,         // first cover of the slider's index of the list, by default
       _sliderMarginLeft,        // slider margin left to $parent, by default
       _coverClickHandler,       // callback when click on cover images
+      animationStepPX,          // distance (px) the slider moves on mousewheel once
     }                           = _sliderParams;
     // set params to default if undefined
     const coverImgWidth         = _coverImgWidth || 135;
@@ -86,6 +87,7 @@ const hhAppDefaultConfig = {
     const coverMargin           = _coverMargin || 30;
     const nullListHTML          = _nullListHTML || '<div class="list-loading">loading...</div>';
     const coverClickHandler     = _coverClickHandler || { func: (e => alert(e)), destory: false };
+    const _animationStepPX      = animationStepPX || 220;
 
     // cover take place
     const coverTakePlace        = coverPanelWidth + coverMargin;
@@ -109,23 +111,21 @@ const hhAppDefaultConfig = {
     let animationTime           = 0;
     // total animation time
     let animationDuration       = 60;
-    // distance (px) the slider moves on mousewheel once
-    let animationStepPX         = 220
     // return object of this class
     let $slider                 = $('<div>')
                                     .addClass('list-slider')
                                     .appendTo($parent);
     // slider filled with covers in the list, true
-    $slider.sliderFilled        = false;
+    let sliderFilled            = false;
     // sotres current slider position, used for re-route
     $slider.coverFirstIndex     =  _coverFirstIndex || 0;
     $slider.sliderMarginLeft    =  _sliderMarginLeft || 0;
     // list stores covers infomation
-    $slider.coverList           = coverList;
+    let _coverList              = coverList;
 
     // todo, not work properly
     $slider.startAnimation = () => {
-      if ($slider.sliderFilled) {
+      if (sliderFilled) {
         // slider animation function, call by requestAnimationFrame
         $slider.sliderAnimation = () => {
           if (moveDistance != 0 && animationTime < animationDuration) {
@@ -198,7 +198,7 @@ const hhAppDefaultConfig = {
     };
 
     $slider.stopAnimation = () => {
-      $slider.sliderFilled && ($slider.sliderAnimation = () => {});
+      sliderFilled && ($slider.sliderAnimation = () => {});
       return $slider;
     };
 
@@ -223,22 +223,22 @@ const hhAppDefaultConfig = {
       // what will return if coverList has no element
       if (coverList.length == 0) {
         // no covers in the list, return slider containing warning html
-        $slider.sliderFilled = false;
+        sliderFilled = false;
         $slider.html(nullListHTML);
         return $slider;
       }
 
-      $slider.coverList = coverList;
+      _coverList = coverList;
       calc();
       fillSlider();
-      $slider.sliderFilled  = true;
+      sliderFilled = true;
       return $slider.css('marginLeft', `${$slider.sliderMarginLeft}px`).startAnimation();
     };
 
     // recalc when window resize
     const calc = () => {
       sliderWidth        = $parent.width();
-      coverCountTotal    = $slider.coverList.length;
+      coverCountTotal    = _coverList.length;
       // plus 2 to make sure part of covers on both sides visible
       coverCountMax      = Math.floor(sliderWidth / coverTakePlace) + 2;
       // number of covers in the list greater than slider can show,
@@ -251,7 +251,7 @@ const hhAppDefaultConfig = {
     const mousewheelHandler = (direction) => {
       if (sliderCanMove) {
         animationTime = 0;
-        moveDistance = direction * animationStepPX;
+        moveDistance = direction * _animationStepPX;
         moveStart = Math.floor($slider.css('marginLeft').replace(/px/, ''));
       }
     };
@@ -261,7 +261,7 @@ const hhAppDefaultConfig = {
       // push all cover elements of the slider into a string
       let sliderHTML = '';
       for (let i = 0; i < coverCountSlider; i++) {
-        const coverInfo = $slider.coverList[i + $slider.coverFirstIndex];
+        const coverInfo = _coverList[i + $slider.coverFirstIndex];
         // cover-panel rotate random degree, range: (-6, -3) U (3, 6)
         const imageRotateDirection = Math.random() > 0.5 ? -1 : 1;
         const imageRotateDeg = Math.random() * 3 + 3;
@@ -298,7 +298,7 @@ const hhAppDefaultConfig = {
     };
 
     //
-    createSlider($slider.coverList);
+    createSlider(_coverList);
     // bind handler
     $parent.on('mousewheel', e => mousewheelHandler(e.deltaY));
 
@@ -514,9 +514,183 @@ const hhAppParser = {
   },
 };
 
-const hhAppPicViewer = {
-  
-};
+!(() => {
+  $.fn.hhAppPicViewer = function(picList = [], viewerParams = { }) {
+    // get params
+    const {
+      customPicWidth,           // user defined pic width, user cannot define pic height
+      isShoWHeader,             // show header or not
+      headerHeight,             // header height
+      isShowFooter,             // show footer or not
+      footerHeight,             // footer height
+      loadingHTML,              // html content of returning slider if coverList is null
+      errorHTML,                // html content if error occurs
+      askForPics,               // function ask for more pic, if there is not enough to show
+      viewerMode,               // ('mutli' | 'single')
+      maxMarginLeft,            // pic max margin-left to pic-panel
+      animationStepPX,          // distance (px) the slider moves on mousewheel once, in 'single' mode
+    }                           = viewerParams;
+    // set params to default if undefined
+    const _customPicWidth       = customPicWidth || 600;
+    const _isShowHeader         = isShoWHeader || true;
+    const _headerHeight         = headerHeight || 30;
+    const _isShowFooter         = isShowFooter || true;
+    const _footerHeight         = footerHeight || 30;
+    const _loadingHTML          = loadingHTML ||
+                                    `
+                                      <div class="loading-img">
+                                        <div class="loading-img-spinner">
+                                          <div class="loading-img-bounce1"></div>
+                                          <div class="loading-img-bounce2"></div>
+                                          <div class="loading-img-bounce3"></div>
+                                        </div>
+                                      </div>
+                                    `;
+    const _errorHTML            = errorHTML || '<span>error</span>';
+    const _viewerMode           = viewerMode || 'custom';
+    const _maxMarginLeft        = maxMarginLeft || 30;
+    const _animationStepPX      = animationStepPX || 60;
+    // parent node of the slider
+    const $parent               = $(this) || $('body');
+
+    // pic List contains pics as Image instance
+    let _picList                = picList;
+
+    let  HFTakePlace            = _isShowHeader * _headerHeight + _isShowFooter * _footerHeight;
+    let  winW                   = window.innerWidth;
+    let  winH                   = window.innerHeight;
+    // sum of all pics display height
+    let _totalHeight            = 0;
+    // loading div display width and height, and its margin-left to pic-panel
+    let _loadingDisplayH        = 0;
+    let _loadingDisplayW        = 0;
+    let _loadingMarginLeft      = 0;
+
+    // distance the slider will move in animation
+    let moveDistance            = 0;
+    // slider margin-left before animation start
+    let moveStart               = 0;
+    // slider width, inherit from its parent node
+    let sliderCanMove           = true;
+    // a increment number recording time animation used
+    let animationTime           = 0;
+    // total animation time
+    let animationDuration       = 60;
+
+    // return object of this class
+    let $viewer                 = $('<div>')
+                                    .addClass('pic-viewer')
+                                    .appendTo($parent);
+
+    $viewer.bar                 = 'bar';
+
+    $viewer.startAnimation = () => {
+
+    };
+
+    $viewer.stopAnimation = () => {
+
+    };
+
+    $viewer.destoryViewer = () => {
+      $viewer.stopAnimation();
+    };
+
+    const _askForPics = (startPicOffset, picCount) => askForPics(startPicOffset, picCount).then(
+      picList => {
+        _picList = picList;
+        createViewer();
+      },
+      () => {}
+    );
+
+    const fillViewer = () => {
+      let picHTML = '<div class="pic-list-panel">';
+      let hasPicToLoad = false;
+      _picList.forEach(pic => {
+        picHTML += `<div class="pic-panel" >`;
+        if (pic == 'loading') {
+          picHTML += _loadingHTML;
+        } else {
+          hasPicToLoad = true;
+          picHTML += `<img src="${pic.dataUrl}" width="${pic.displayW}" height="${pic.displayH}" />`;
+        }
+      });
+      if (hasPicToLoad) {
+        _askForPics(0, _picList.length);
+      }
+    };
+
+
+    const calc = () => {
+      HFTakePlace     = _isShowHeader * _headerHeight + _isShowFooter * _footerHeight;
+      winW            = window.innerWidth;
+      winH            = window.innerHeight;
+      _totalHeight    = 0;
+
+      _picList.map(pic => {
+        if (pic == 'loaindg') return false;
+        const picW = pic.width;
+        const picH = pic.Height;
+        let thisPicDisplayW = _customPicWidth;
+        let thisPicDisplayH = _customPicWidth / picW * picH;
+        // pic height = window height, notice pic width has a limit as window width
+        if (_viewerMode == 'single') {
+          thisPicDisplayH = winH - HFTakePlace;
+          thisPicDisplayW = thisPicDisplayH / picH * picW;
+          if (thisPicDisplayW > winW) {
+            thisPicDisplayW = winW;
+            thisPicDisplayH = thisPicDisplayW / picW * picH;
+          }
+        }
+
+        const remainWidth = Math.max(0, winW - thisPicDisplayW);
+        const picMarginLeft = Math.min(_maxMarginLeft, remainWidth / 2);
+        pic.displayW = thisPicDisplayW;
+        pic.displayH = thisPicDisplayH;
+        pic.marginLeft = picMarginLeft;
+        _totalHeight += (thisPicDisplayH + HFTakePlace);
+        return true;
+      });
+
+      _loadingDisplayH = winH - HFTakePlace;
+      _loadingDisplayW = _customPicWidth;
+      _loadingMarginLeft = Math.min(_maxMarginLeft, Math.max(0, winW - _loadingDisplayW) / 2);
+      // not enough pic to show, often ocurrs on window resize
+      if (_totalHeight < winH) {
+        const loadingTakePlace = _loadingDisplayH + HFTakePlace;
+        // append loading pics to make sure the screen is fulfilled in Vertical
+        const appendCount = Math.ceil((winH - _totalHeight) / loadingTakePlace);
+        _totalHeight += (appendCount * loadingTakePlace);
+        _picList = [..._picList, ...(new Array(appendCount).fill('loading'))];
+      }
+    };
+
+    const mousewheelHandler = direction => {
+      if (viewerMode == 'single') {
+        moveDistance = winH * (direction > 0 ? 1 : -1);
+      } else {
+        moveDistance = animationStepPX * direction;
+      }
+
+    };
+
+    const createViewer = () => {
+      $viewer.destoryViewer();
+      if (askForPics === undefined) {
+        $viewer.html(_errorHTML);
+        return $viewer;
+      }
+
+      calc();
+      fillViewer();
+      return $viewer;
+    };
+    createViewer();
+    $parent.on('mousewheel', e => mousewheelHandler(e.deltaY));
+    return $viewer;
+  };
+})();
 
 const hhAppTween = {
   Linear: (t, b, c, d) => { return c*t/d + b; },
