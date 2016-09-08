@@ -69,17 +69,16 @@ const hhApp = {
     if (loc.pathname == '/') {
       hhAppUI.showHomePage();
     } else {
-      // router = [href, ('comic'|'xiee'|sth unkown), comicid, (undefined|'/'|string),
-      //           volumnid, ('v=\d+\*'|undefined), pageid, serverid]
+      // router = [match, comicid, volumnid, pageid, serverid]
       const router = loc.href.match(hhAppConfig.reg_ComicHref);
       if (router == null) {
         // redirect to homepage if location is not href to a certain comic
         hhApp.openUrl(hhAppConfig.baseUrl);
       } else {
-        const comicid    = router[2];
-        const volumnid   = router[4];
-        const pageid     = router[6] || 1;
-        const serverid   = router[7];
+        const comicid    = router[1];
+        const volumnid   = router[2];
+        const pageid     = router[3] || 1;
+        const serverid   = router[4];
         hhAppUI.showComic(comicid, volumnid, serverid, pageid);
       }
     }
