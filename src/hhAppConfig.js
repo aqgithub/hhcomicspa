@@ -34,8 +34,7 @@ const hhAppDefaultConfig = {
   reg_ServerJsIndex:     /hh\/(\d+)\.js/,
   reg_ServerList:        /ServerList\[\d+\]="(.+?)";/g,
   reg_ServerEncode:      /PicListUrl,"(.+?)"/,
-  reg_ComicPathname:     /^\/(comic|xiee)\/(\d+)($|\/$|\/\d+)/,
-
+  reg_ComicHref:         /\/(comic|xiee)\/(\d+)(\/$|\/(\d+)\.htm\?(v=(\d+)\*)?s=(\d+))?/,
   // catalog volumns, sort showing order as setting
   volumnCatalogOrder:    ['集', '卷', '篇'],
 
