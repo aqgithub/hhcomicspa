@@ -11,6 +11,7 @@
       _coverFirstIndex,         // first cover of the slider's index of the list, by default
       _sliderMarginLeft,        // slider margin left to $parent, by default
       _coverClickHandler,       // callback when click on cover images
+      animationStepPX,          // distance (px) the slider moves on mousewheel once
     }                           = _sliderParams;
     // set params to default if undefined
     const coverImgWidth         = _coverImgWidth || 135;
@@ -20,6 +21,7 @@
     const coverMargin           = _coverMargin || 30;
     const nullListHTML          = _nullListHTML || '<div class="list-loading">loading...</div>';
     const coverClickHandler     = _coverClickHandler || { func: (e => alert(e)), destory: false };
+    const _animationStepPX      = animationStepPX || 220;
 
     // cover take place
     const coverTakePlace        = coverPanelWidth + coverMargin;
@@ -43,23 +45,21 @@
     let animationTime           = 0;
     // total animation time
     let animationDuration       = 60;
-    // distance (px) the slider moves on mousewheel once
-    let animationStepPX         = 220
     // return object of this class
     let $slider                 = $('<div>')
                                     .addClass('list-slider')
                                     .appendTo($parent);
     // slider filled with covers in the list, true
-    $slider.sliderFilled        = false;
+    let sliderFilled            = false;
     // sotres current slider position, used for re-route
     $slider.coverFirstIndex     =  _coverFirstIndex || 0;
     $slider.sliderMarginLeft    =  _sliderMarginLeft || 0;
     // list stores covers infomation
-    $slider.coverList           = coverList;
+    let _coverList              = coverList;
 
     // todo, not work properly
     $slider.startAnimation = () => {
-      if ($slider.sliderFilled) {
+      if (sliderFilled) {
         // slider animation function, call by requestAnimationFrame
         $slider.sliderAnimation = () => {
           if (moveDistance != 0 && animationTime < animationDuration) {
@@ -132,7 +132,7 @@
     };
 
     $slider.stopAnimation = () => {
-      $slider.sliderFilled && ($slider.sliderAnimation = () => {});
+      sliderFilled && ($slider.sliderAnimation = () => {});
       return $slider;
     };
 
@@ -157,22 +157,22 @@
       // what will return if coverList has no element
       if (coverList.length == 0) {
         // no covers in the list, return slider containing warning html
-        $slider.sliderFilled = false;
+        sliderFilled = false;
         $slider.html(nullListHTML);
         return $slider;
       }
 
-      $slider.coverList = coverList;
+      _coverList = coverList;
       calc();
       fillSlider();
-      $slider.sliderFilled  = true;
+      sliderFilled = true;
       return $slider.css('marginLeft', `${$slider.sliderMarginLeft}px`).startAnimation();
     };
 
     // recalc when window resize
     const calc = () => {
       sliderWidth        = $parent.width();
-      coverCountTotal    = $slider.coverList.length;
+      coverCountTotal    = _coverList.length;
       // plus 2 to make sure part of covers on both sides visible
       coverCountMax      = Math.floor(sliderWidth / coverTakePlace) + 2;
       // number of covers in the list greater than slider can show,
@@ -185,7 +185,7 @@
     const mousewheelHandler = (direction) => {
       if (sliderCanMove) {
         animationTime = 0;
-        moveDistance = direction * animationStepPX;
+        moveDistance = direction * _animationStepPX;
         moveStart = Math.floor($slider.css('marginLeft').replace(/px/, ''));
       }
     };
@@ -195,7 +195,7 @@
       // push all cover elements of the slider into a string
       let sliderHTML = '';
       for (let i = 0; i < coverCountSlider; i++) {
-        const coverInfo = $slider.coverList[i + $slider.coverFirstIndex];
+        const coverInfo = _coverList[i + $slider.coverFirstIndex];
         // cover-panel rotate random degree, range: (-6, -3) U (3, 6)
         const imageRotateDirection = Math.random() > 0.5 ? -1 : 1;
         const imageRotateDeg = Math.random() * 3 + 3;
@@ -232,7 +232,7 @@
     };
 
     //
-    createSlider($slider.coverList);
+    createSlider(_coverList);
     // bind handler
     $parent.on('mousewheel', e => mousewheelHandler(e.deltaY));
 
